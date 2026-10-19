@@ -1,0 +1,532 @@
+/* ============================================================
+   VyaparFlow — Finova-Inspired Design System
+   ============================================================ */
+
+/* ── GOOGLE FONT ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+:root {
+  /* ── Brand ── */
+  --brand:           #159A68;
+  --brand-hover:     #117d55;
+  --brand-light:     #DDF5E8;
+  --brand-subtle:    #f0faf5;
+
+  /* ── Backgrounds ── */
+  --bg-app:          #F5F8F5;
+  --bg-surface:      #FFFFFF;
+  --bg-card:         #FFFFFF;
+  --bg-hover:        #F0F5F1;
+  --bg-input:        #F7FAF8;
+  --bg-dark:         #171C1A;
+  --bg-dark-card:    #1E2523;
+
+  /* ── Borders ── */
+  --border:          #E5EBE6;
+  --border-focus:    #159A68;
+
+  /* ── Text ── */
+  --text-primary:    #202722;
+  --text-secondary:  #4A5550;
+  --text-muted:      #77817B;
+  --text-on-accent:  #FFFFFF;
+
+  /* ── Financial: Green (Sales/Profit) ── */
+  --green:           #168653;
+  --green-light:     #E8F8EF;
+  --green-border:    #A8DFBF;
+  --green-text:      #168653;
+
+  /* ── Financial: Red (Expense/Loss) ── */
+  --red:             #D94B4B;
+  --red-light:       #FEF0F0;
+  --red-border:      #F5ADAD;
+  --red-text:        #C23B3B;
+
+  /* ── Accent: Expense coral ── */
+  --coral:           #F28A82;
+  --coral-light:     #FEF0EF;
+
+  /* ── Amber for warnings ── */
+  --amber:           #D97706;
+  --amber-light:     #FFFBEB;
+
+  /* ── Blue for info ── */
+  --blue:            #2563EB;
+  --blue-light:      #EFF6FF;
+
+  /* ── Shadows ── */
+  --shadow-xs:  0 1px 2px rgba(0,0,0,0.04);
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg:  0 10px 30px rgba(0,0,0,0.09), 0 4px 8px rgba(0,0,0,0.04);
+
+  /* ── Border-radii ── */
+  --r-sm:   6px;
+  --r-md:   10px;
+  --r-lg:   14px;
+  --r-xl:   18px;
+  --r-2xl:  24px;
+  --r-full: 9999px;
+
+  /* ── Layout ── */
+  --sidebar-w:   256px;
+  --navbar-h:    64px;
+
+  /* ── Transitions ── */
+  --transition: 150ms ease;
+
+  /* Legacy compat — keep old accent references working */
+  --accent:          var(--brand);
+  --accent-hover:    var(--brand-hover);
+  --accent-subtle:   var(--brand-light);
+}
+
+/* ── DARK THEME ── */
+[data-theme='dark'] {
+  --bg-app:          #121815;
+  --bg-surface:      #181E1B;
+  --bg-card:         #1E2623;
+  --bg-hover:        #242C28;
+  --bg-input:        #121815;
+
+  --border:          #2C3530;
+  --border-focus:    #159A68;
+
+  --text-primary:    #E8EDE9;
+  --text-secondary:  #8D9990;
+  --text-muted:      #556159;
+
+  --green:           #24A969;
+  --green-light:     rgba(36,169,105,0.12);
+  --green-border:    rgba(36,169,105,0.3);
+  --green-text:      #24A969;
+
+  --red:             #E05555;
+  --red-light:       rgba(224,85,85,0.12);
+  --red-border:      rgba(224,85,85,0.3);
+  --red-text:        #E05555;
+
+  --amber:           #E3B341;
+  --amber-light:     rgba(227,179,65,0.1);
+
+  --blue:            #58A6FF;
+  --blue-light:      rgba(88,166,255,0.1);
+
+  --shadow-xs:  0 1px 2px rgba(0,0,0,0.35);
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.45);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.5);
+  --shadow-lg:  0 10px 30px rgba(0,0,0,0.6);
+}
+
+/* ── RESET ── */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html { font-size: 16px; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background-color: var(--bg-app);
+  color: var(--text-primary);
+  transition: background-color 0.25s ease, color 0.25s ease;
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── LAYOUT SHELL ── */
+.app-container {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  margin-left: var(--sidebar-current-w, var(--sidebar-w));
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  transition: margin-left 0.25s ease;
+}
+
+.page-body {
+  padding: 1.75rem 2rem 3rem;
+  flex: 1;
+}
+
+@media (max-width: 1024px) {
+  .main-content { margin-left: 0; }
+  .page-body { padding: 1.25rem 1.25rem 2rem; }
+}
+@media (max-width: 640px) {
+  .page-body { padding: 1rem 1rem 2rem; }
+}
+
+/* ── FINOVA CARD ── */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition), border-color var(--transition);
+}
+.card:hover { box-shadow: var(--shadow-md); }
+
+/* ── PAGE AND CARD TITLE HIERARCHY ── */
+.page-body .fn-page-heading {
+  width: fit-content;
+  padding-bottom: 0.45rem;
+  border-bottom: 2px solid var(--brand-light);
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+  line-height: 1.25;
+}
+
+.page-body .card .fn-card-title {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+  color: var(--text-primary);
+}
+
+.page-body .card .fn-card-subtitle {
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.page-body .card .fn-card-hdr {
+  padding: 1.25rem 1.4rem;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  background: linear-gradient(90deg, var(--brand-subtle), var(--bg-card) 75%);
+}
+
+.page-body .card .fn-card-hdr::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 1rem;
+  bottom: 1rem;
+  width: 4px;
+  border-radius: 0 var(--r-full) var(--r-full) 0;
+  background: var(--brand);
+}
+
+[data-theme='dark'] .page-body .card .fn-card-hdr {
+  background: linear-gradient(90deg, rgba(21, 154, 104, 0.1), var(--bg-card) 75%);
+}
+
+.page-body .fn-sec-title,
+.page-body .fn-quick-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: var(--r-full);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--transition);
+  user-select: none;
+  text-decoration: none;
+  white-space: nowrap;
+  font-family: inherit;
+  letter-spacing: -0.01em;
+}
+.btn:active { transform: scale(0.98); }
+
+.btn-primary {
+  background: var(--brand);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: var(--brand-hover);
+  box-shadow: 0 4px 14px rgba(21,154,104,0.35);
+}
+
+.btn-sale {
+  background: var(--brand);
+  color: #fff;
+}
+.btn-sale:hover {
+  background: var(--brand-hover);
+  box-shadow: 0 4px 14px rgba(21,154,104,0.35);
+}
+
+.btn-expense {
+  background: var(--red);
+  color: #fff;
+}
+.btn-expense:hover {
+  filter: brightness(0.9);
+  box-shadow: 0 4px 14px rgba(217,75,75,0.3);
+}
+
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border-color: var(--border);
+  border-radius: var(--r-full);
+}
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+}
+
+.btn-danger {
+  background: var(--red);
+  color: #fff;
+  border-radius: var(--r-full);
+}
+.btn-danger:hover { filter: brightness(0.88); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+}
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-icon {
+  padding: 0.45rem;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+}
+.btn-icon:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-saved {
+  background: var(--green);
+  color: #fff;
+  border-radius: var(--r-full);
+}
+
+/* ── BADGES ── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.65rem;
+  border-radius: var(--r-full);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.badge-sale {
+  background: var(--green-light);
+  color: var(--green-text);
+  border: 1px solid var(--green-border);
+}
+.badge-expense {
+  background: var(--red-light);
+  color: var(--red-text);
+  border: 1px solid var(--red-border);
+}
+.badge-profit {
+  background: var(--green-light);
+  color: var(--green-text);
+  border: 1px solid var(--green-border);
+}
+.badge-loss {
+  background: var(--red-light);
+  color: var(--red-text);
+  border: 1px solid var(--red-border);
+}
+.badge-neutral {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+/* ── PROFIT / LOSS CARD STATE ── */
+.state-profit {
+  border-color: var(--green-border) !important;
+  background: linear-gradient(135deg, var(--bg-card) 60%, var(--green-light) 100%);
+}
+.state-loss {
+  border-color: var(--red-border) !important;
+  background: linear-gradient(135deg, var(--bg-card) 60%, var(--red-light) 100%);
+}
+
+/* ── MODALS ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1rem;
+  animation: fadeIn 0.15s ease;
+}
+.modal-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
+  width: 100%;
+  max-width: 500px;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp 0.2s ease;
+}
+.modal-header {
+  padding: 1.375rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.modal-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+.modal-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+.modal-body { padding: 1.5rem; }
+.modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.625rem;
+}
+
+/* ── FORMS ── */
+.form-group { margin-bottom: 1.25rem; }
+.form-label {
+  display: block;
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.4rem;
+}
+.form-control {
+  width: 100%;
+  padding: 0.7rem 0.9rem;
+  border-radius: var(--r-lg);
+  border: 1.5px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+.form-control:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px rgba(21,154,104,0.12);
+  background: var(--bg-card);
+}
+.form-control::placeholder { color: var(--text-muted); }
+
+.radio-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+.radio-card {
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 0.65rem 0.4rem;
+  text-align: center;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: all var(--transition);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+}
+.radio-card.active {
+  border-color: var(--brand);
+  background: var(--brand-light);
+  color: var(--brand);
+}
+.radio-card:hover { border-color: var(--brand); }
+
+.input-error { border-color: var(--red) !important; }
+.error-text {
+  font-size: 0.75rem;
+  color: var(--red);
+  margin-top: 0.3rem;
+  display: block;
+}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* ── SCROLLBARS ── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── UTILITIES ── */
+.text-sale    { color: var(--green); }
+.text-expense { color: var(--red); }
+.text-muted-color { color: var(--text-muted); }
+.font-mono { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; }
+
+/* ── LEGACY COMPAT ── */
+.glass-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-sm);
+}
+.badge-profit, .card-profit-active { border-color: var(--green-border); }
+.badge-loss, .card-loss-active     { border-color: var(--red-border); }
