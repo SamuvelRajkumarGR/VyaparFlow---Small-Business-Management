@@ -1,4 +1,6 @@
 const Transaction = require('../models/Transaction');
+const Customer = require('../models/Customer');
+const { isCreditGivenTransaction } = require('../utils/transactionClassification');
 
 // Helper to calculate date range based on period filter
 const getDateFilter = (period, customStart, customEnd) => {
@@ -69,7 +71,7 @@ const computeSummary = (transactions) => {
       trendMap[dateStr] = { date: dateStr, sales: 0, expenses: 0, profit: 0, timestamp: new Date(t.date).getTime() };
     }
 
-    if (t.type === 'sale') {
+    if (t.type === 'sale' && !isCreditGivenTransaction(t)) {
       totalSales += amt;
       if (paymentBreakdown[t.paymentMethod] !== undefined) {
         paymentBreakdown[t.paymentMethod] += amt;
@@ -117,30 +119,42 @@ const computeSummary = (transactions) => {
   };
 };
 
-// @desc    Get all transactions with search, filter, and pagination
+// @desc    Get all transactions for authenticated user with search, filter, and pagination
 // @route   GET /api/transactions
-// @access  Public
+// @access  Private (Owner isolated)
 const getTransactions = async (req, res, next) => {
   try {
-    const { type, paymentMethod, category, search, period, startDate, endDate, sortBy = 'date', order = 'desc' } = req.query;
-    const query = getDateFilter(period, startDate, endDate);
+    const { type, paymentMethod, category, customer, search, period, startDate, endDate, sortBy = 'date', order = 'desc' } = req.query;
+    // STRICT OWNER ENFORCEMENT
+    const query = {
+      ...getDateFilter(period, startDate, endDate),
+      owner: req.user._id,
+    };
 
     if (type && type !== 'all') query.type = type.toLowerCase();
     if (paymentMethod && paymentMethod !== 'all') query.paymentMethod = paymentMethod.toLowerCase();
     if (category && category !== 'all') query.category = category.toLowerCase();
-    if (search) {
-      query.$or = [
-        { description: { $regex: search, $options: 'i' } },
-        { category: { $regex: search, $options: 'i' } },
-        { paymentMethod: { $regex: search, $options: 'i' } },
-      ];
+    if (customer && customer !== 'all') query.customer = customer;
+
+    if (search && search.trim()) {
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { description: { $regex: search.trim(), $options: 'i' } },
+          { category: { $regex: search.trim(), $options: 'i' } },
+          { paymentMethod: { $regex: search.trim(), $options: 'i' } },
+        ],
+      });
     }
 
     const sortOrder = order === 'asc' ? 1 : -1;
     const sortObj = {};
     sortObj[sortBy] = sortOrder;
 
-    const transactions = await Transaction.find(query).sort(sortObj);
+    const transactions = await Transaction.find(query)
+      .populate('customer', 'name phone')
+      .sort(sortObj);
+
     res.status(200).json({ success: true, count: transactions.length, data: transactions });
   } catch (error) {
     next(error);
@@ -149,11 +163,19 @@ const getTransactions = async (req, res, next) => {
 
 // @desc    Get single transaction by ID
 // @route   GET /api/transactions/:id
-// @access  Public
+// @access  Private (Owner isolated)
 const getTransactionById = async (req, res, next) => {
   try {
-    const transaction = await Transaction.findById(req.params.id);
-    if (!transaction) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    // STRICT OWNER ISOLATION: match both _id and owner
+    const transaction = await Transaction.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    }).populate('customer', 'name phone');
+
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
     res.status(200).json({ success: true, data: transaction });
   } catch (error) {
     next(error);
@@ -162,10 +184,10 @@ const getTransactionById = async (req, res, next) => {
 
 // @desc    Create a new transaction (Sale or Expense)
 // @route   POST /api/transactions
-// @access  Public
+// @access  Private (Owner isolated)
 const createTransaction = async (req, res, next) => {
   try {
-    const { type, amount, paymentMethod, category, description, date } = req.body;
+    const { type, amount, paymentMethod, category, description, date, customer } = req.body;
 
     if (!type || !['sale', 'expense'].includes(type)) {
       return res.status(400).json({ success: false, message: 'Valid transaction type (sale or expense) is required' });
@@ -178,7 +200,19 @@ const createTransaction = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Description is required' });
     }
 
+    // If linking to a customer, verify customer ownership
+    let customerId = null;
+    if (customer) {
+      const custRecord = await Customer.findOne({ _id: customer, owner: req.user._id });
+      if (custRecord) {
+        customerId = custRecord._id;
+      }
+    }
+
+    // STRICT OWNER ASSIGNMENT: forced to req.user._id
     const newTransaction = await Transaction.create({
+      owner: req.user._id,
+      customer: customerId,
       type: type.toLowerCase(),
       amount: parsedAmount,
       paymentMethod: paymentMethod ? paymentMethod.toLowerCase() : 'cash',
@@ -187,7 +221,11 @@ const createTransaction = async (req, res, next) => {
       date: date ? new Date(date) : new Date(),
     });
 
-    res.status(201).json({ success: true, message: `${type.toUpperCase()} recorded successfully`, data: newTransaction });
+    res.status(201).json({
+      success: true,
+      message: `${type.toUpperCase()} recorded successfully`,
+      data: newTransaction,
+    });
   } catch (error) {
     next(error);
   }
@@ -195,13 +233,20 @@ const createTransaction = async (req, res, next) => {
 
 // @desc    Update a transaction
 // @route   PUT /api/transactions/:id
-// @access  Public
+// @access  Private (Owner isolated)
 const updateTransaction = async (req, res, next) => {
   try {
-    const transaction = await Transaction.findById(req.params.id);
-    if (!transaction) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    // STRICT OWNER ISOLATION: verify ownership
+    const transaction = await Transaction.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
 
-    const { type, amount, paymentMethod, category, description, date } = req.body;
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
+    const { type, amount, paymentMethod, category, description, date, customer } = req.body;
 
     if (amount !== undefined) {
       const parsedAmount = parseFloat(amount);
@@ -210,14 +255,29 @@ const updateTransaction = async (req, res, next) => {
       }
       transaction.amount = parsedAmount;
     }
-    if (type) transaction.type = type.toLowerCase();
+    if (type && ['sale', 'expense'].includes(type)) transaction.type = type.toLowerCase();
     if (paymentMethod) transaction.paymentMethod = paymentMethod.toLowerCase();
     if (category) transaction.category = category.toLowerCase();
     if (description) transaction.description = description.trim();
     if (date) transaction.date = new Date(date);
 
+    if (customer !== undefined) {
+      if (customer) {
+        const custRecord = await Customer.findOne({ _id: customer, owner: req.user._id });
+        if (custRecord) transaction.customer = custRecord._id;
+      } else {
+        transaction.customer = null;
+      }
+    }
+
+    // NOTE: Owner field can NEVER be changed via body or params
     const updatedTransaction = await transaction.save();
-    res.status(200).json({ success: true, message: 'Transaction updated successfully', data: updatedTransaction });
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaction updated successfully',
+      data: updatedTransaction,
+    });
   } catch (error) {
     next(error);
   }
@@ -225,34 +285,55 @@ const updateTransaction = async (req, res, next) => {
 
 // @desc    Delete a transaction
 // @route   DELETE /api/transactions/:id
-// @access  Public
+// @access  Private (Owner isolated)
 const deleteTransaction = async (req, res, next) => {
   try {
-    const transaction = await Transaction.findById(req.params.id);
-    if (!transaction) return res.status(404).json({ success: false, message: 'Transaction not found' });
+    // STRICT OWNER ISOLATION: verify ownership before delete
+    const transaction = await Transaction.findOne({
+      _id: req.params.id,
+      owner: req.user._id,
+    });
+
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
+
     await transaction.deleteOne();
-    res.status(200).json({ success: true, message: 'Transaction deleted successfully', id: req.params.id });
+
+    res.status(200).json({
+      success: true,
+      message: 'Transaction deleted successfully',
+      id: req.params.id,
+    });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get complete financial summary + comparison with last month
+// @desc    Get complete financial summary + comparison with last month for authenticated user
 // @route   GET /api/transactions/summary
-// @access  Public
+// @access  Private (Owner isolated)
 const getDashboardSummary = async (req, res, next) => {
   try {
     const { period = 'all', startDate, endDate } = req.query;
-    const dateQuery = getDateFilter(period, startDate, endDate);
+
+    // STRICT OWNER ISOLATION
+    const dateQuery = {
+      ...getDateFilter(period, startDate, endDate),
+      owner: req.user._id,
+    };
 
     const transactions = await Transaction.find(dateQuery).sort({ date: -1 });
     const current = computeSummary(transactions);
 
-    // Last month comparison (always fetch for insights)
+    // Last month comparison for this specific owner
     const now = new Date();
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0);
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-    const lastMonthTxns = await Transaction.find({ date: { $gte: lastMonthStart, $lte: lastMonthEnd } });
+    const lastMonthTxns = await Transaction.find({
+      owner: req.user._id,
+      date: { $gte: lastMonthStart, $lte: lastMonthEnd },
+    });
     const lastMonth = computeSummary(lastMonthTxns);
 
     // Compute month-over-month deltas
@@ -267,7 +348,9 @@ const getDashboardSummary = async (req, res, next) => {
       : null;
 
     // Sales count breakdown
-    const salesTransactions = transactions.filter(t => t.type === 'sale');
+    const salesTransactions = transactions.filter(
+      t => t.type === 'sale' && !isCreditGivenTransaction(t)
+    );
     const expenseTransactions = transactions.filter(t => t.type === 'expense');
 
     // Payment method transaction counts
@@ -276,7 +359,7 @@ const getDashboardSummary = async (req, res, next) => {
       if (paymentCounts[t.paymentMethod] !== undefined) paymentCounts[t.paymentMethod]++;
     });
 
-    // Generate insights from real data
+    // Generate insights from real user data
     const insights = [];
     if (salesChange !== null && Math.abs(salesChange) >= 1) {
       insights.push({
@@ -320,7 +403,9 @@ const getDashboardSummary = async (req, res, next) => {
       data: {
         ...current,
         profitStatusText: current.isProfit ? "You're profitable" : "Your business is in a loss",
-        recentTransactions: transactions.slice(0, 8),
+        recentTransactions: transactions.filter(
+          t => !isCreditGivenTransaction(t)
+        ).slice(0, 8),
         comparison: { salesChange, expenseChange, marginChange },
         lastMonth: { totalSales: lastMonth.totalSales, totalExpenses: lastMonth.totalExpenses, profitMargin: lastMonth.profitMargin },
         insights,

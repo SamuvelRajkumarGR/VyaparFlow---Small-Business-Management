@@ -1,36 +1,89 @@
 import React, { useState, useEffect } from 'react';
-import { User, DollarSign, Palette, Database, CheckCircle, ShieldCheck } from 'lucide-react';
+import { User, Palette, Database, CheckCircle, Lock } from 'lucide-react';
 import { useTransaction } from '../context/TransactionContext';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 const SettingsPage = () => {
   const { businessName, currency, updateSettings, handleSeedData } = useTransaction();
   const { theme, setTheme } = useTheme();
+  const { user, changePassword } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
-  const [nameVal, setNameVal] = useState(businessName);
+  // Profile Form
+  const [bizVal, setBizVal] = useState(businessName || user?.businessName || '');
   const [currVal, setCurrVal] = useState(currency);
-  const [saved, setSaved] = useState(false);
+  const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState('');
+
+  // Password Form
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+  const [pwdSuccess, setPwdSuccess] = useState('');
+  const [pwdError, setPwdError] = useState('');
 
   useEffect(() => {
-    setNameVal(businessName);
-    setCurrVal(currency);
-  }, [businessName, currency]);
+    if (user) {
+      setBizVal(user.businessName || businessName);
+      setCurrVal(user.currency || currency);
+    }
+  }, [user, businessName, currency]);
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
-    if (!nameVal.trim()) return;
-    updateSettings(nameVal.trim(), currVal);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setProfileError('');
+    if (!bizVal.trim()) {
+      setProfileError('Business name cannot be empty');
+      return;
+    }
+
+    try {
+      await updateSettings(bizVal.trim(), currVal);
+      setProfileSaved(true);
+      setTimeout(() => setProfileSaved(false), 2500);
+    } catch (err) {
+      setProfileError('Failed to update business profile');
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwdSuccess('');
+    setPwdError('');
+
+    if (newPassword.length < 6) {
+      setPwdError('New password must be at least 6 characters long');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPwdError('Passwords do not match');
+      return;
+    }
+
+    setPwdLoading(true);
+    const res = await changePassword(currentPassword, newPassword);
+    setPwdLoading(false);
+
+    if (res.success) {
+      setPwdSuccess('Password changed successfully!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => setPwdSuccess(''), 3500);
+    } else {
+      setPwdError(res.message);
+    }
   };
 
   return (
-    <div className="fn-page-container">
+    <div className="fn-page-container fn-settings-page">
       {/* Header */}
       <div className="fn-page-header">
         <div>
           <h2 className="fn-page-heading">Settings & Preferences</h2>
-          <p className="fn-page-desc">Configure business profile, UI theme, and sample database records.</p>
+          <p className="fn-page-desc">Configure business profile, security credentials, and interface themes.</p>
         </div>
       </div>
 
@@ -43,37 +96,129 @@ const SettingsPage = () => {
             </div>
             <div>
               <h3 className="fn-card-title">Business Profile</h3>
-              <p className="fn-card-subtitle">Brand name and default currency symbol</p>
+              <p className="fn-card-subtitle">
+                {isAdmin ? 'Platform profile details' : 'Brand name, currency, and merchant contact'}
+              </p>
             </div>
           </div>
 
           <form onSubmit={handleSaveProfile} className="fn-settings-form">
+            {profileError && (
+              <div style={{ color: 'var(--red)', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{profileError}</div>
+            )}
+
             <div className="form-group">
               <label className="form-label" htmlFor="biz-name">Business / Store Name</label>
               <input
                 id="biz-name"
                 type="text"
                 className="form-control"
-                value={nameVal}
-                onChange={e => setNameVal(e.target.value)}
+                value={bizVal}
+                onChange={(e) => setBizVal(e.target.value)}
                 placeholder="e.g. Apex Retailers"
-                maxLength={50}
+                maxLength={60}
+                required
+              />
+            </div>
+
+            {!isAdmin && (
+              <div className="form-group">
+                <label className="form-label" htmlFor="currency">Default Currency Symbol</label>
+                <select id="currency" className="form-control" value={currVal} onChange={(e) => setCurrVal(e.target.value)}>
+                  <option value="₹">₹ Indian Rupee (INR)</option>
+                  <option value="$">$ US Dollar (USD)</option>
+                  <option value="€">€ Euro (EUR)</option>
+                  <option value="£">£ British Pound (GBP)</option>
+                  <option value="¥">¥ Japanese Yen (JPY)</option>
+                  <option value="AED ">AED UAE Dirham (AED)</option>
+                </select>
+              </div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="user-email">Registered Email</label>
+              <input
+                id="user-email"
+                type="email"
+                className="form-control"
+                value={user?.email || ''}
+                disabled
+                style={{ opacity: 0.7, cursor: 'not-allowed' }}
+              />
+              <small style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>
+                Email is unique and verified for secure account ownership.
+              </small>
+            </div>
+
+            <button type="submit" className={`btn ${profileSaved ? 'btn-saved' : 'btn-sale'}`}>
+              {profileSaved ? <><CheckCircle size={15} /> Saved successfully</> : 'Update Business Profile'}
+            </button>
+          </form>
+        </div>
+
+        {/* Change Password / Security */}
+        <div className="card fn-settings-card">
+          <div className="fn-card-hdr">
+            <div className="fn-hdr-icon-wrap" style={{ background: 'var(--blue-light)', color: 'var(--blue)' }}>
+              <Lock size={18} />
+            </div>
+            <div>
+              <h3 className="fn-card-title">Security & Password</h3>
+              <p className="fn-card-subtitle">Change account login credentials</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleChangePassword} className="fn-settings-form">
+            {pwdSuccess && (
+              <div style={{ color: 'var(--brand)', fontSize: '0.8rem', marginBottom: '0.75rem', fontWeight: 600 }}>
+                ✓ {pwdSuccess}
+              </div>
+            )}
+            {pwdError && (
+              <div style={{ color: 'var(--red)', fontSize: '0.8rem', marginBottom: '0.75rem' }}>{pwdError}</div>
+            )}
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="curr-pwd">Current Password</label>
+              <input
+                id="curr-pwd"
+                type="password"
+                className="form-control"
+                placeholder="Enter current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="currency">Currency Symbol</label>
-              <select id="currency" className="form-control" value={currVal} onChange={e => setCurrVal(e.target.value)}>
-                <option value="₹">₹ Indian Rupee (INR)</option>
-                <option value="$">$ US Dollar (USD)</option>
-                <option value="€">€ Euro (EUR)</option>
-                <option value="£">£ British Pound (GBP)</option>
-                <option value="¥">¥ Japanese Yen (JPY)</option>
-              </select>
+              <label className="form-label" htmlFor="new-pwd">New Password</label>
+              <input
+                id="new-pwd"
+                type="password"
+                className="form-control"
+                placeholder="Min 6 characters"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+              />
             </div>
 
-            <button type="submit" className={`btn ${saved ? 'btn-saved' : 'btn-sale'}`}>
-              {saved ? <><CheckCircle size={15} /> Saved successfully</> : 'Update Profile'}
+            <div className="form-group">
+              <label className="form-label" htmlFor="conf-pwd">Confirm New Password</label>
+              <input
+                id="conf-pwd"
+                type="password"
+                className="form-control"
+                placeholder="Re-enter new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
+
+            <button type="submit" className="btn btn-secondary" disabled={pwdLoading}>
+              {pwdLoading ? 'Updating Password...' : 'Change Password'}
             </button>
           </form>
         </div>
@@ -91,7 +236,7 @@ const SettingsPage = () => {
           </div>
 
           <div className="fn-theme-options">
-            {['light', 'dark'].map(t => (
+            {['light', 'dark'].map((t) => (
               <button
                 key={t}
                 className={`fn-theme-card ${theme === t ? 'fn-theme-active' : ''}`}
@@ -113,96 +258,54 @@ const SettingsPage = () => {
           </div>
         </div>
 
-        {/* Demo Data Management */}
-        <div className="card fn-settings-card">
-          <div className="fn-card-hdr">
-            <div className="fn-hdr-icon-wrap fn-icon-amber">
-              <Database size={18} />
-            </div>
-            <div>
-              <h3 className="fn-card-title">Demo Data Generator</h3>
-              <p className="fn-card-subtitle">Populate application with realistic records</p>
-            </div>
-          </div>
+        {!isAdmin && (
+          <>
+            {/* Demo Data Management */}
+            <div className="card fn-settings-card">
+              <div className="fn-card-hdr">
+                <div className="fn-hdr-icon-wrap fn-icon-amber">
+                  <Database size={18} />
+                </div>
+                <div>
+                  <h3 className="fn-card-title">Personal Demo Data</h3>
+                  <p className="fn-card-subtitle">Populate your workspace with sample records</p>
+                </div>
+              </div>
 
-          <div className="fn-demo-body">
-            <p className="fn-demo-text">
-              Seed your database with 30 days of realistic small-business sales, stock purchases, rent, salaries, and utility bills.
-            </p>
-            <div className="fn-demo-notice">
-              <span>⚠️ Notice: This replaces your current transactions with fresh demo data.</span>
+              <div className="fn-demo-body">
+                <p className="fn-demo-text">
+                  Seed your private workspace with 30 days of realistic sales, stock purchases, rent, staff salaries, and utility bills.
+                </p>
+                <div className="fn-demo-notice">
+                  <span>⚠️ Notice: This only affects YOUR business data. Other users' workspaces remain isolated and untouched.</span>
+                </div>
+                <button className="btn btn-secondary fn-demo-btn" onClick={handleSeedData}>
+                  <Database size={15} />
+                  <span>Load 30-Day Demo Data</span>
+                </button>
+              </div>
             </div>
-            <button className="btn btn-secondary fn-demo-btn" onClick={handleSeedData}>
-              <Database size={15} />
-              <span>Load 30-Day Demo Data</span>
-            </button>
-          </div>
-        </div>
-
-        {/* System & Architecture Info */}
-        <div className="card fn-settings-card">
-          <div className="fn-card-hdr">
-            <div className="fn-hdr-icon-wrap">
-              <ShieldCheck size={18} />
-            </div>
-            <div>
-              <h3 className="fn-card-title">System & Stack Information</h3>
-              <p className="fn-card-subtitle">VyaparFlow platform details</p>
-            </div>
-          </div>
-
-          <div className="fn-info-body">
-            <div className="fn-info-row"><span>Design Theme</span><span className="fn-pill-info">Finova UI No. 4</span></div>
-            <div className="fn-info-row"><span>Frontend Stack</span><span>React 18, Vite, Recharts, Lucide</span></div>
-            <div className="fn-info-row"><span>Backend Stack</span><span>Node.js, Express, MongoDB Atlas</span></div>
-            <div className="fn-info-row"><span>Calculations</span><span>Real-time Financial Aggregate Engine</span></div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       <style>{`
-        .fn-page-container {
-          display: flex;
-          flex-direction: column;
-          gap: 1.5rem;
+        .fn-settings-page .fn-page-header {
+          margin-bottom: 1.5rem;
         }
-
-        .fn-page-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 1rem;
-        }
-
-        .fn-page-heading {
-          font-size: 1.35rem;
-          font-weight: 800;
-          color: var(--text-primary);
-          letter-spacing: -0.025em;
-        }
-
-        .fn-page-desc {
-          font-size: 0.85rem;
-          color: var(--text-muted);
-          margin-top: 0.2rem;
-        }
-
         .fn-settings-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 1.25rem;
+          gap: 1.5rem;
         }
         @media (max-width: 900px) {
           .fn-settings-grid { grid-template-columns: 1fr; }
         }
-
         .fn-settings-card {
           overflow: hidden;
           display: flex;
           flex-direction: column;
         }
-
         .fn-card-hdr {
           padding: 1.25rem 1.4rem;
           border-bottom: 1px solid var(--border);
@@ -210,7 +313,6 @@ const SettingsPage = () => {
           align-items: center;
           gap: 0.85rem;
         }
-
         .fn-hdr-icon-wrap {
           width: 38px;
           height: 38px;
@@ -226,21 +328,17 @@ const SettingsPage = () => {
           background: var(--amber-light);
           color: var(--amber);
         }
-
         .fn-settings-form {
           padding: 1.4rem;
           display: flex;
           flex-direction: column;
         }
-
-        /* ── Theme Selectors ── */
         .fn-theme-options {
           padding: 1.4rem;
           display: flex;
           gap: 1rem;
           flex-wrap: wrap;
         }
-
         .fn-theme-card {
           flex: 1;
           min-width: 140px;
@@ -262,7 +360,6 @@ const SettingsPage = () => {
           border-color: var(--brand);
           background: var(--brand-light);
         }
-
         .fn-tp-preview {
           width: 100%;
           height: 60px;
@@ -273,7 +370,6 @@ const SettingsPage = () => {
         }
         .fn-tp-light { background: #F5F8F5; }
         .fn-tp-dark { background: #171C1A; }
-
         .fn-tp-side {
           width: 25%;
           border-right: 1px solid rgba(0,0,0,0.08);
@@ -283,7 +379,6 @@ const SettingsPage = () => {
           background: #1E2523;
           border-right-color: rgba(255,255,255,0.08);
         }
-
         .fn-tp-main {
           flex: 1;
           padding: 8px;
@@ -296,7 +391,6 @@ const SettingsPage = () => {
           border-radius: 3px;
           background: var(--border);
         }
-
         .fn-theme-name {
           display: flex;
           align-items: center;
@@ -308,8 +402,6 @@ const SettingsPage = () => {
         .fn-theme-check {
           color: var(--brand);
         }
-
-        /* ── Demo ── */
         .fn-demo-body {
           padding: 1.4rem;
           display: flex;
@@ -332,41 +424,6 @@ const SettingsPage = () => {
         .fn-demo-btn {
           align-self: flex-start;
           margin-top: 0.4rem;
-        }
-
-        /* ── Info ── */
-        .fn-info-body {
-          padding: 1.4rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-        .fn-info-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding-bottom: 0.65rem;
-          border-bottom: 1px solid var(--border);
-          font-size: 0.825rem;
-        }
-        .fn-info-row:last-child {
-          border-bottom: none;
-          padding-bottom: 0;
-        }
-        .fn-info-row span:first-child {
-          color: var(--text-muted);
-          font-weight: 500;
-        }
-        .fn-info-row span:last-child {
-          color: var(--text-primary);
-          font-weight: 600;
-        }
-        .fn-pill-info {
-          background: var(--brand-light);
-          color: var(--brand) !important;
-          padding: 0.15rem 0.55rem;
-          border-radius: var(--r-full);
-          font-size: 0.75rem;
         }
       `}</style>
     </div>

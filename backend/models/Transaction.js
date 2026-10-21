@@ -2,6 +2,17 @@ const mongoose = require('mongoose');
 
 const transactionSchema = new mongoose.Schema(
   {
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'Transaction must be associated with an authenticated business owner'],
+      index: true,
+    },
+    customer: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Customer',
+      default: null,
+    },
     type: {
       type: String,
       required: [true, 'Transaction type is required (sale or expense)'],
@@ -11,6 +22,10 @@ const transactionSchema = new mongoose.Schema(
       },
       lowercase: true,
       trim: true,
+    },
+    isCreditGiven: {
+      type: Boolean,
+      default: false,
     },
     amount: {
       type: Number,
@@ -54,7 +69,9 @@ const transactionSchema = new mongoose.Schema(
   }
 );
 
-// Indexing for performance
-transactionSchema.index({ type: 1, date: -1 });
+// High performance compound indexes scoped by owner
+transactionSchema.index({ owner: 1, type: 1, date: -1 });
+transactionSchema.index({ owner: 1, date: -1 });
+transactionSchema.index({ owner: 1, customer: 1 });
 
 module.exports = mongoose.model('Transaction', transactionSchema);

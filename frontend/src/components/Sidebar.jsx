@@ -1,23 +1,35 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, TrendingUp, TrendingDown, ArrowLeftRight,
   BarChart3, Settings, Sun, Moon, Menu, X, ChevronLeft, ChevronRight,
+  Users, Shield, LogOut, FileText
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useTransaction } from '../context/TransactionContext';
+import { useAuth } from '../context/AuthContext';
 
-const navItems = [
+const businessNavItems = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard },
   { label: 'Sales', path: '/sales', icon: TrendingUp },
   { label: 'Expenses', path: '/expenses', icon: TrendingDown },
   { label: 'Transactions', path: '/transactions', icon: ArrowLeftRight },
+  { label: 'Customer Ledger', path: '/customers', icon: Users },
   { label: 'Analytics', path: '/analytics', icon: BarChart3 },
+];
+
+const adminNavItems = [
+  { label: 'Platform Stats', path: '/admin', icon: Shield },
+  { label: 'User Accounts', path: '/admin/users', icon: Users },
+  { label: 'Audit Trail', path: '/admin/audit-logs', icon: FileText },
 ];
 
 const Sidebar = () => {
   const { theme, toggleTheme } = useTheme();
   const { businessName } = useTransaction();
+  const { user, isAdmin, logout } = useAuth();
+  const navigate = useNavigate();
+
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -32,16 +44,23 @@ const Sidebar = () => {
     };
   }, [collapsed]);
 
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
   return (
     <>
       {/* Mobile hamburger */}
-      <button
-        className="sb-mobile-btn"
-        onClick={() => setMobileOpen(true)}
-        aria-label="Open navigation"
-      >
-        <Menu size={20} />
-      </button>
+      {!mobileOpen && (
+        <button
+          className="sb-mobile-btn"
+          onClick={() => setMobileOpen(true)}
+          aria-label="Open navigation"
+        >
+          <Menu size={20} />
+        </button>
+      )}
 
       {/* Mobile backdrop */}
       {mobileOpen && (
@@ -57,8 +76,8 @@ const Sidebar = () => {
           </div>
           {!collapsed && (
             <div className="sb-brand-text">
-              <span className="sb-brand-name">{businessName || 'VyaparFlow'}</span>
-              <span className="sb-brand-tag">Business Manager</span>
+              <span className="sb-brand-name">{businessName || user?.businessName || 'VyaparFlow'}</span>
+              <span className="sb-brand-tag">{user?.name ? `${user.name} (${user.role})` : 'Business Workspace'}</span>
             </div>
           )}
           <button
@@ -69,29 +88,61 @@ const Sidebar = () => {
             {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
           {/* Mobile close */}
-          <button className="sb-mobile-close" onClick={() => setMobileOpen(false)}>
+          <button
+            className="sb-mobile-close"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close navigation"
+          >
             <X size={18} />
           </button>
         </div>
 
         {/* Navigation */}
         <nav className="sb-nav">
-          <div className="sb-nav-label">{!collapsed && 'Main Menu'}</div>
-          {navItems.map(({ label, path, icon: Icon }) => (
-            <NavLink
-              key={path}
-              to={path}
-              end={path === '/'}
-              className={({ isActive }) => `sb-link ${isActive ? 'sb-link--active' : ''}`}
-              onClick={() => setMobileOpen(false)}
-              title={collapsed ? label : undefined}
-            >
-              <div className="sb-link-icon-wrap">
-                <Icon size={17} />
+          {!isAdmin && (
+            <>
+              <div className="sb-nav-label">{!collapsed && 'Business Workspace'}</div>
+              {businessNavItems.map(({ label, path, icon: Icon }) => (
+                <NavLink
+                  key={path}
+                  to={path}
+                  end={path === '/'}
+                  className={({ isActive }) => `sb-link ${isActive ? 'sb-link--active' : ''}`}
+                  onClick={() => setMobileOpen(false)}
+                  title={collapsed ? label : undefined}
+                >
+                  <div className="sb-link-icon-wrap">
+                    <Icon size={17} />
+                  </div>
+                  {!collapsed && <span className="sb-link-label">{label}</span>}
+                </NavLink>
+              ))}
+            </>
+          )}
+
+          {/* Super Admin Section */}
+          {isAdmin && (
+            <>
+              <div className="sb-nav-label" style={{ marginTop: '1rem', color: 'var(--amber)' }}>
+                {!collapsed && 'Super Admin'}
               </div>
-              {!collapsed && <span className="sb-link-label">{label}</span>}
-            </NavLink>
-          ))}
+              {adminNavItems.map(({ label, path, icon: Icon }) => (
+                <NavLink
+                  key={path}
+                  to={path}
+                  end={path === '/admin'}
+                  className={({ isActive }) => `sb-link ${isActive ? 'sb-link--active-admin' : ''}`}
+                  onClick={() => setMobileOpen(false)}
+                  title={collapsed ? label : undefined}
+                >
+                  <div className="sb-link-icon-wrap" style={{ color: 'var(--amber)' }}>
+                    <Icon size={17} />
+                  </div>
+                  {!collapsed && <span className="sb-link-label">{label}</span>}
+                </NavLink>
+              ))}
+            </>
+          )}
         </nav>
 
         {/* Footer */}
@@ -105,7 +156,7 @@ const Sidebar = () => {
             <div className="sb-link-icon-wrap">
               <Settings size={17} />
             </div>
-            {!collapsed && <span className="sb-link-label">Settings</span>}
+            {!collapsed && <span className="sb-link-label">Settings & Profile</span>}
           </NavLink>
 
           <button className="sb-theme-btn" onClick={toggleTheme} title="Toggle theme">
@@ -115,6 +166,13 @@ const Sidebar = () => {
             {!collapsed && (
               <span>{theme === 'light' ? 'Dark mode' : 'Light mode'}</span>
             )}
+          </button>
+
+          <button className="sb-theme-btn sb-logout-btn" onClick={handleLogout} title="Log Out">
+            <div className="sb-link-icon-wrap">
+              <LogOut size={17} />
+            </div>
+            {!collapsed && <span>Log Out</span>}
           </button>
         </div>
       </aside>
@@ -211,7 +269,7 @@ const Sidebar = () => {
           min-width: 0;
         }
         .sb-brand-name {
-          font-size: 0.9rem;
+          font-size: 0.875rem;
           font-weight: 800;
           color: var(--text-primary);
           display: block;
@@ -226,6 +284,8 @@ const Sidebar = () => {
           display: block;
           margin-top: 1px;
           white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
           font-weight: 500;
         }
         .sb-collapse-btn {
@@ -275,10 +335,6 @@ const Sidebar = () => {
           color: #FFFFFF;
           transform: translateY(-50%) scale(1.08);
         }
-        .sb-collapse-btn:focus-visible {
-          outline: 2px solid var(--brand);
-          outline-offset: 2px;
-        }
 
         /* ── Nav ── */
         .sb-nav {
@@ -327,6 +383,15 @@ const Sidebar = () => {
           color: #fff;
           box-shadow: 0 2px 8px rgba(21,154,104,0.3);
         }
+        .sb-link--active-admin {
+          background: var(--amber-light);
+          color: var(--amber);
+          font-weight: 600;
+        }
+        .sb-link--active-admin .sb-link-icon-wrap {
+          background: var(--amber);
+          color: #fff !important;
+        }
         .sb-link-icon-wrap {
           width: 32px;
           height: 32px;
@@ -372,8 +437,8 @@ const Sidebar = () => {
           background: var(--bg-hover);
           color: var(--text-primary);
         }
-        .sb-theme-btn:hover .sb-link-icon-wrap {
-          background: var(--border);
+        .sb-logout-btn:hover {
+          color: var(--red);
         }
 
         /* ── Responsive ── */

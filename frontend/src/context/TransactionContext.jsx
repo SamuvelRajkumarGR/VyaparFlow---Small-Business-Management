@@ -7,18 +7,21 @@ import {
   deleteTransactionAPI,
   seedDemoDataAPI,
 } from '../services/api';
+import { useAuth } from './AuthContext';
 
 const TransactionContext = createContext();
 
 export const TransactionProvider = ({ children }) => {
+  const { user, isAuthenticated, isSuspended, updateProfile } = useAuth();
+
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Settings state
-  const [currency, setCurrency] = useState(() => localStorage.getItem('bizpulse_currency') || '₹');
-  const [businessName, setBusinessName] = useState(() => localStorage.getItem('bizpulse_bname') || 'Apex Retail & Traders');
+  // Settings state derived from authenticated user
+  const currency = user?.currency || localStorage.getItem('bizpulse_currency') || '₹';
+  const businessName = user?.businessName || localStorage.getItem('bizpulse_bname') || 'VyaparFlow Business';
 
   // Filter state
   const [period, setPeriod] = useState('all');
@@ -49,8 +52,15 @@ export const TransactionProvider = ({ children }) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Fetch summary & transactions from API
+  // Fetch summary & transactions from API strictly for current user
   const fetchData = useCallback(async () => {
+    if (!isAuthenticated || isSuspended) {
+      setSummary(null);
+      setTransactions([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -69,11 +79,14 @@ export const TransactionProvider = ({ children }) => {
       if (transRes.success) setTransactions(transRes.data);
     } catch (err) {
       console.error('API Error:', err);
-      setError(err.response?.data?.message || 'Failed to connect to backend server');
+      // If suspended, error is handled via event
+      if (err.response?.status !== 401) {
+        setError(err.response?.data?.message || 'Failed to load business data');
+      }
     } finally {
       setLoading(false);
     }
-  }, [period, customStart, customEnd]);
+  }, [isAuthenticated, isSuspended, period, customStart, customEnd]);
 
   useEffect(() => {
     fetchData();
@@ -153,7 +166,7 @@ export const TransactionProvider = ({ children }) => {
     }
   };
 
-  // Seed sample data
+  // Seed sample data for current user
   const handleSeedData = async () => {
     try {
       setLoading(true);
@@ -168,13 +181,16 @@ export const TransactionProvider = ({ children }) => {
     }
   };
 
-  // Update Settings
-  const updateSettings = (name, curr) => {
-    setBusinessName(name);
-    setCurrency(curr);
-    localStorage.setItem('bizpulse_bname', name);
-    localStorage.setItem('bizpulse_currency', curr);
-    addToast('Settings updated successfully', 'success');
+  // Update Settings via Profile
+  const updateSettings = async (name, curr) => {
+    const res = await updateProfile({ businessName: name, currency: curr });
+    if (res.success) {
+      localStorage.setItem('bizpulse_bname', name);
+      localStorage.setItem('bizpulse_currency', curr);
+      addToast('Business settings updated successfully', 'success');
+    } else {
+      addToast(res.message || 'Failed to update settings', 'error');
+    }
   };
 
   return (

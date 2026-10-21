@@ -9,11 +9,15 @@ const {
   getDashboardSummary,
 } = require('../controllers/transactionController');
 const { seedData } = require('../seed/seedData');
+const { protect } = require('../middleware/auth');
+
+// All transaction routes are strictly user-protected
+router.use(protect);
 
 // Dashboard financial summary endpoint
 router.get('/summary', getDashboardSummary);
 
-// Seed sample demo data endpoint
+// Seed sample demo data endpoint for current user
 router.post('/seed', seedData);
 
 // Base transaction REST CRUD endpoints

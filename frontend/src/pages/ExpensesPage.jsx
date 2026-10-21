@@ -1,8 +1,9 @@
-import React from 'react';
-import { TrendingDown, Package, Building2, Zap, Users, MoreHorizontal, MinusCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { TrendingDown, Package, Building2, Zap, Users, MoreHorizontal, MinusCircle, FileSpreadsheet } from 'lucide-react';
 import { useTransaction } from '../context/TransactionContext';
 import TransactionTable from '../components/TransactionTable';
 import MetricCard from '../components/MetricCard';
+import { exportCSVAPI } from '../services/api';
 
 const fmt = (n, currency = '₹') => `${currency}${Number(n).toLocaleString('en-IN')}`;
 
@@ -15,12 +16,41 @@ const CATS = [
 ];
 
 const ExpensesPage = () => {
-  const { summary, transactions, loading, currency = '₹', openAddExpenseModal } = useTransaction();
+  const {
+    summary, transactions, loading, currency = '₹', openAddExpenseModal,
+    period, customStart, customEnd,
+  } = useTransaction();
+  const [exporting, setExporting] = useState(false);
 
   const expData = transactions.filter(t => t.type === 'expense');
   const totalExpenses = summary?.totalExpenses || 0;
   const expBreak = summary?.expenseBreakdown || {};
   const expChange = summary?.comparison?.expenseChange ?? null;
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const params = { period, type: 'expense' };
+      if (period === 'custom') {
+        params.startDate = customStart;
+        params.endDate = customEnd;
+      }
+      const response = await exportCSVAPI(params);
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/csv;charset=utf-8;' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `VyaparFlow_Expenses_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.error('Expenses CSV export failed:', err);
+      window.alert('Failed to export expenses CSV. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -39,10 +69,21 @@ const ExpensesPage = () => {
           <h2 className="fn-page-heading">Business Expenses</h2>
           <p className="fn-page-desc">Track overheads, stock purchases, and operational disbursements.</p>
         </div>
-        <button className="btn btn-expense" onClick={openAddExpenseModal}>
-          <MinusCircle size={15} />
-          <span>Record Expense</span>
-        </button>
+        <div className="fn-expenses-header-actions">
+          <button
+            className="btn btn-secondary fn-ledger-export"
+            onClick={handleExportCSV}
+            disabled={exporting || expData.length === 0}
+            title="Download expenses as CSV"
+          >
+            <FileSpreadsheet size={16} />
+            <span>{exporting ? 'Exporting...' : 'Export CSV'}</span>
+          </button>
+          <button className="btn btn-expense" onClick={openAddExpenseModal}>
+            <MinusCircle size={15} />
+            <span>Record Expense</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards */}
@@ -88,6 +129,24 @@ const ExpensesPage = () => {
           justify-content: space-between;
           flex-wrap: wrap;
           gap: 1rem;
+        }
+
+        .fn-expenses-header-actions {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          flex-wrap: wrap;
+        }
+        .fn-ledger-export {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.45rem;
+          font-size: 0.825rem;
+          font-weight: 600;
+        }
+        .fn-ledger-export:disabled {
+          cursor: not-allowed;
+          opacity: 0.55;
         }
 
         .fn-page-heading {
