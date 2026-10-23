@@ -77,7 +77,7 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5001;
 
 if (process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, 'localhost', () => {
+  app.listen(PORT, () => {
     console.log(`====================================================`);
     console.log(`🚀 VyaparFlow Multi-User Backend Server running on port ${PORT}`);
     console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`);
