@@ -12,7 +12,11 @@ const {
   forgotPassword,
   resetPassword,
 } = require('../controllers/authController');
-const { protect } = require('../middleware/auth');
+const { protect, protectSuspended } = require('../middleware/auth');
+const {
+  createRequest,
+  getMyRequest,
+} = require('../controllers/reactivationRequestController');
 
 // Brute-force rate limiter for sensitive authentication actions
 const authLimiter = rateLimit({
@@ -33,6 +37,8 @@ router.post('/google', authLimiter, googleAuth);
 router.post('/logout', logout);
 router.post('/forgot-password', authLimiter, forgotPassword);
 router.post('/reset-password', authLimiter, resetPassword);
+router.post('/reactivation-requests', protectSuspended, createRequest);
+router.get('/reactivation-requests/mine', protectSuspended, getMyRequest);
 
 // Private authenticated user routes
 router.get('/me', protect, getMe);

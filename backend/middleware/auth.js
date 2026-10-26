@@ -24,7 +24,7 @@ const getCookieOptions = () => {
 };
 
 // Protect middleware - validates JWT and active account status
-const protect = async (req, res, next) => {
+const protect = async (req, res, next, allowSuspended = false) => {
   let token;
 
   // 1. Check HttpOnly cookie
@@ -55,8 +55,8 @@ const protect = async (req, res, next) => {
       });
     }
 
-    // Check account status
-    if (user.accountStatus === 'suspended') {
+    // Suspended users may access only the dedicated reactivation request endpoints.
+    if (user.accountStatus === 'suspended' && !allowSuspended) {
       return res.status(403).json({
         success: false,
         accountStatus: 'suspended',
@@ -74,6 +74,8 @@ const protect = async (req, res, next) => {
   }
 };
 
+const protectSuspended = (req, res, next) => protect(req, res, next, true);
+
 // Authorize specific roles (e.g. 'admin')
 const authorize = (...roles) => {
   return (req, res, next) => {
@@ -89,6 +91,7 @@ const authorize = (...roles) => {
 
 module.exports = {
   protect,
+  protectSuspended,
   authorize,
   generateToken,
   getCookieOptions,

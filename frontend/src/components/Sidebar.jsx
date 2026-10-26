@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, TrendingUp, TrendingDown, ArrowLeftRight,
   BarChart3, Settings, Sun, Moon, Menu, X, ChevronLeft, ChevronRight,
-  Users, Shield, LogOut, FileText
+  Users, Shield, LogOut, FileText, MessageSquare
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useTransaction } from '../context/TransactionContext';
 import { useAuth } from '../context/AuthContext';
+import { getAdminReactivationRequestsAPI } from '../services/api';
 
 const businessNavItems = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -21,6 +22,7 @@ const businessNavItems = [
 const adminNavItems = [
   { label: 'Platform Stats', path: '/admin', icon: Shield },
   { label: 'User Accounts', path: '/admin/users', icon: Users },
+  { label: 'Reactivation Requests', path: '/admin/reactivation-requests', icon: MessageSquare },
   { label: 'Audit Trail', path: '/admin/audit-logs', icon: FileText },
 ];
 
@@ -29,9 +31,11 @@ const Sidebar = () => {
   const { businessName } = useTransaction();
   const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingReactivationCount, setPendingReactivationCount] = useState(0);
 
   useEffect(() => {
     document.documentElement.style.setProperty(
@@ -43,6 +47,27 @@ const Sidebar = () => {
       document.documentElement.style.removeProperty('--sidebar-current-w');
     };
   }, [collapsed]);
+
+  useEffect(() => {
+    if (!isAdmin) return undefined;
+
+    let isMounted = true;
+    const fetchPendingRequests = async () => {
+      try {
+        const result = await getAdminReactivationRequestsAPI({ status: 'pending' });
+        if (isMounted) setPendingReactivationCount(result.requests.length);
+      } catch (error) {
+        console.error('Error fetching pending reactivation request count:', error);
+      }
+    };
+
+    fetchPendingRequests();
+    const intervalId = window.setInterval(fetchPendingRequests, 60000);
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [isAdmin, location.pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -139,6 +164,11 @@ const Sidebar = () => {
                     <Icon size={17} />
                   </div>
                   {!collapsed && <span className="sb-link-label">{label}</span>}
+                  {path === '/admin/reactivation-requests' && pendingReactivationCount > 0 && (
+                    <span className="sb-pending-badge" aria-label={`${pendingReactivationCount} pending requests`}>
+                      {pendingReactivationCount > 99 ? '99+' : pendingReactivationCount}
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </>
@@ -368,6 +398,17 @@ const Sidebar = () => {
           transition: all var(--transition);
           white-space: nowrap;
           position: relative;
+        }
+        .sb-pending-badge {
+          margin-left: auto;
+          min-width: 1.25rem;
+          padding: 0.12rem 0.35rem;
+          border-radius: var(--r-full);
+          background: var(--red);
+          color: #fff;
+          font-size: 0.68rem;
+          font-weight: 800;
+          text-align: center;
         }
         .sb-link:hover {
           background: var(--bg-hover);

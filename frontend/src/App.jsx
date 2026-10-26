@@ -31,6 +31,7 @@ import AccessDeniedPage from './pages/AccessDeniedPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminAuditLogsPage from './pages/AdminAuditLogsPage';
+import AdminReactivationRequestsPage from './pages/AdminReactivationRequestsPage';
 
 // Route Guard for authenticated business users
 const ProtectedRoute = ({ children }) => {
@@ -217,6 +218,16 @@ const App = () => (
                 <AdminRoute>
                   <AppLayout>
                     <AdminAuditLogsPage />
+                  </AppLayout>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/reactivation-requests"
+              element={
+                <AdminRoute>
+                  <AppLayout>
+                    <AdminReactivationRequestsPage />
                   </AppLayout>
                 </AdminRoute>
               }

@@ -3,6 +3,7 @@ const { OAuth2Client } = require('google-auth-library');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const { generateToken, getCookieOptions } = require('../middleware/auth');
+const { isEmailConfigured, sendPasswordResetEmail } = require('../utils/mailer');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || '');
 
@@ -146,48 +147,44 @@ const googleAuth = async (req, res, next) => {
   try {
     const { credential, businessName } = req.body;
 
-    if (!credential) {
+    if (typeof credential !== 'string' || !credential) {
       return res.status(400).json({
         success: false,
         message: 'Google ID token credential is required',
       });
     }
 
+    const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+    if (!clientId || clientId === 'your_google_client_id_here') {
+      return res.status(503).json({
+        success: false,
+        message: 'Google sign-in is not configured. Set GOOGLE_CLIENT_ID on the backend.',
+      });
+    }
+
     let payload;
-    const clientId = process.env.GOOGLE_CLIENT_ID;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: clientId,
+      });
+      payload = ticket.getPayload();
+    } catch (verifyErr) {
+      return res.status(401).json({
+        success: false,
+        message: 'Google token verification failed. Please sign in again.',
+      });
+    }
 
-    // Verify token using official Google OAuth client
-    if (clientId && clientId !== 'your_google_client_id_here') {
-      try {
-        const ticket = await googleClient.verifyIdToken({
-          idToken: credential,
-          audience: clientId,
-        });
-        payload = ticket.getPayload();
-      } catch (verifyErr) {
-        return res.status(401).json({
-          success: false,
-          message: `Google token verification failed: ${verifyErr.message}`,
-        });
-      }
-    } else {
-      // In development mode when GOOGLE_CLIENT_ID is not yet provisioned by the user:
-      // Decode JWT payload safely to enable end-to-end development testing
-      try {
-        const parts = credential.split('.');
-        if (parts.length === 3) {
-          payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-        }
-      } catch (e) {
-        // Continue to fallback
-      }
-
-      if (!payload || !payload.sub || !payload.email) {
-        return res.status(400).json({
-          success: false,
-          message: 'GOOGLE_CLIENT_ID is not configured in backend/.env. Please configure it in Google Cloud Console.',
-        });
-      }
+    if (
+      !payload?.sub ||
+      typeof payload.email !== 'string' ||
+      payload.email_verified !== true
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: 'Google must provide a verified email address to sign in.',
+      });
     }
 
     const { sub: googleSubject, email, name, picture } = payload;
@@ -253,7 +250,7 @@ const googleAuth = async (req, res, next) => {
     }
 
     // 3. New Google User Registration
-    const finalBusinessName = businessName && businessName.trim()
+    const finalBusinessName = typeof businessName === 'string' && businessName.trim()
       ? businessName.trim()
       : `${name || 'Vyapar'}'s Business`;
 
@@ -393,8 +390,15 @@ const changePassword = async (req, res, next) => {
 const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
-    if (!email) {
+    if (typeof email !== 'string' || !email.trim()) {
       return res.status(400).json({ success: false, message: 'Please provide your email address' });
+    }
+
+    if (!isEmailConfigured()) {
+      return res.status(503).json({
+        success: false,
+        message: 'Password reset email is temporarily unavailable. Please contact support.',
+      });
     }
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
@@ -402,17 +406,46 @@ const forgotPassword = async (req, res, next) => {
       // Do not reveal whether user exists for security
       return res.status(200).json({
         success: true,
-        message: 'If an account exists with this email, password reset instructions have been issued.',
+        message: 'If an account exists with this email, password reset instructions will be sent.',
       });
     }
 
-    // Generate random reset token
+    // Store only a hash so a database read cannot be used to reset the password.
     const resetToken = crypto.randomBytes(32).toString('hex');
     const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
 
     user.resetPasswordToken = hashedToken;
     user.resetPasswordExpires = Date.now() + 30 * 60 * 1000; // 30 minutes
     await user.save();
+
+    const clientUrl = (process.env.CLIENT_URL || '').replace(/\/+$/, '');
+    if (!clientUrl) {
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpires = undefined;
+      await user.save();
+      return res.status(503).json({
+        success: false,
+        message: 'Password reset email is temporarily unavailable. Please contact support.',
+      });
+    }
+
+    const resetUrl = `${clientUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
+    try {
+      await sendPasswordResetEmail({
+        email: user.email,
+        name: user.name,
+        resetUrl,
+      });
+    } catch (emailError) {
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpires = undefined;
+      await user.save();
+      console.error('Failed to deliver password reset email:', emailError.message);
+      return res.status(503).json({
+        success: false,
+        message: 'Password reset email could not be sent right now. Please try again later.',
+      });
+    }
 
     // Log the request
     await AuditLog.create({
@@ -426,9 +459,7 @@ const forgotPassword = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Password reset token generated successfully.',
-      // Provided in response in development / staging for testing
-      resetToken,
+      message: 'If an account exists with this email, password reset instructions will be sent.',
     });
   } catch (error) {
     next(error);

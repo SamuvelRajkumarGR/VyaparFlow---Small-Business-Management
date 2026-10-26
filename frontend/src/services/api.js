@@ -78,6 +78,16 @@ export const resetPasswordAPI = async (data) => {
   return response.data;
 };
 
+export const createReactivationRequestAPI = async (reason) => {
+  const response = await api.post('/auth/reactivation-requests', { reason });
+  return response.data;
+};
+
+export const getMyReactivationRequestAPI = async () => {
+  const response = await api.get('/auth/reactivation-requests/mine');
+  return response.data;
+};
+
 // ==========================================
 // Transactions & Summary APIs
 // ==========================================
@@ -185,6 +195,19 @@ export const updateAdminUserStatusAPI = async (id, accountStatus) => {
 
 export const getAdminAuditLogsAPI = async (params = {}) => {
   const response = await api.get('/admin/audit-logs', { params });
+  return response.data;
+};
+
+export const getAdminReactivationRequestsAPI = async (params = {}) => {
+  const response = await api.get('/admin/reactivation-requests', { params });
+  return response.data;
+};
+
+export const reviewReactivationRequestAPI = async (id, decision, reviewNote) => {
+  const response = await api.patch(`/admin/reactivation-requests/${id}`, {
+    decision,
+    reviewNote,
+  });
   return response.data;
 };
 

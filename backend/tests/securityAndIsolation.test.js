@@ -12,6 +12,7 @@ const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const Customer = require('../models/Customer');
 const AuditLog = require('../models/AuditLog');
+const ReactivationRequest = require('../models/ReactivationRequest');
 
 // Test runner helper
 let server;
@@ -85,11 +86,30 @@ const runTests = async () => {
     });
 
     // Cleanup previous test users
-    await User.deleteMany({ email: { $in: ['test_user_a@test.com', 'test_user_b@test.com', 'admin_test@test.com'] } });
+    const testUserEmails = ['test_user_a@test.com', 'test_user_b@test.com', 'admin_test@test.com'];
+    const previousTestUsers = await User.find({ email: { $in: testUserEmails } }).select('_id');
+    await ReactivationRequest.deleteMany({ user: { $in: previousTestUsers.map((user) => user._id) } });
+    await User.deleteMany({ email: { $in: testUserEmails } });
+    await User.deleteMany({ email: 'forged_google_test@test.com' });
     await Customer.deleteMany({ name: { $regex: /Test Customer/ } });
 
     // ---------------------------------------------------------
-    // TEST 1: Register User A with email and password
+    // TEST 1: Google sign-in rejects unsigned, forged credentials
+    // ---------------------------------------------------------
+    const forgedGoogleCredential =
+      'eyJhbGciOiJub25lIn0.eyJzdWIiOiJmb3JnZWQiLCJlbWFpbCI6ImZvcmdlZF9nb29nbGVfdGVzdEB0ZXN0LmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlfQ.';
+    const forgedGoogleRes = await request('POST', '/api/auth/google', {
+      credential: forgedGoogleCredential,
+    });
+    const forgedGoogleUser = await User.findOne({ email: 'forged_google_test@test.com' });
+    assert(
+      [401, 503].includes(forgedGoogleRes.status) && !forgedGoogleRes.body.success,
+      'Google sign-in rejects forged ID tokens or unavailable verification configuration'
+    );
+    assert(!forgedGoogleUser, 'Forged Google credentials cannot create an account');
+
+    // ---------------------------------------------------------
+    // TEST 2: Register User A with email and password
     // ---------------------------------------------------------
     const regResA = await request('POST', '/api/auth/register', {
       name: 'Alice Merchant',
@@ -103,6 +123,26 @@ const runTests = async () => {
     const tokenA = regResA.body.token;
     const userA = regResA.body.user;
     assert(userA.role === 'user', 'User A role is defaulted to "user" (not admin)');
+
+    // Ensure missing email configuration does not expose account existence or a reset token.
+    const originalMailFrom = process.env.MAIL_FROM;
+    delete process.env.MAIL_FROM;
+    const forgotPasswordExisting = await request('POST', '/api/auth/forgot-password', {
+      email: 'test_user_a@test.com',
+    });
+    const forgotPasswordUnknown = await request('POST', '/api/auth/forgot-password', {
+      email: 'unknown_reset_user@test.com',
+    });
+    if (originalMailFrom !== undefined) process.env.MAIL_FROM = originalMailFrom;
+    assert(
+      forgotPasswordExisting.status === 503 &&
+        forgotPasswordExisting.body.resetToken === undefined,
+      'Password reset does not expose a token when email delivery is not configured'
+    );
+    assert(
+      forgotPasswordUnknown.status === forgotPasswordExisting.status,
+      'Password reset configuration errors do not reveal whether an email is registered'
+    );
 
     // ---------------------------------------------------------
     // TEST 2: Password is stored as hash, not plaintext
@@ -483,6 +523,127 @@ const runTests = async () => {
       'Suspended user is blocked from business operations (403 Forbidden)'
     );
 
+    // Suspended users can request review, but not access admin request data.
+    const requestByActiveUser = await request(
+      'POST',
+      '/api/auth/reactivation-requests',
+      { reason: 'Please review my account access.' },
+      tokenA
+    );
+    assert(
+      requestByActiveUser.status === 400,
+      'Active users cannot submit reactivation requests'
+    );
+
+    const shortRequest = await request(
+      'POST',
+      '/api/auth/reactivation-requests',
+      { reason: 'Help' },
+      tokenB
+    );
+    assert(shortRequest.status === 400, 'Reactivation request validates the reason length');
+
+    const submittedRequest = await request(
+      'POST',
+      '/api/auth/reactivation-requests',
+      { reason: 'I believe my account was suspended in error. Please review it.' },
+      tokenB
+    );
+    assert(
+      submittedRequest.status === 201 && submittedRequest.body.request.status === 'pending',
+      'Suspended user can submit a reactivation request'
+    );
+    const reactivationRequestId = submittedRequest.body.request._id;
+
+    const duplicateRequest = await request(
+      'POST',
+      '/api/auth/reactivation-requests',
+      { reason: 'I am sending a duplicate request for review.' },
+      tokenB
+    );
+    assert(duplicateRequest.status === 409, 'User cannot create duplicate pending requests');
+
+    const myRequest = await request(
+      'GET',
+      '/api/auth/reactivation-requests/mine',
+      null,
+      tokenB
+    );
+    assert(
+      myRequest.status === 200 && myRequest.body.request._id === reactivationRequestId,
+      'Suspended user can view their own request status'
+    );
+
+    const requestsByUser = await request(
+      'GET',
+      '/api/admin/reactivation-requests',
+      null,
+      tokenA
+    );
+    assert(
+      requestsByUser.status === 403,
+      'Business users cannot view administrator reactivation requests'
+    );
+
+    const adminRequests = await request(
+      'GET',
+      '/api/admin/reactivation-requests',
+      null,
+      adminToken
+    );
+    assert(
+      adminRequests.status === 200 &&
+        adminRequests.body.requests.some((item) => item._id === reactivationRequestId),
+      'Administrator can view submitted reactivation requests'
+    );
+
+    const deniedRequest = await request(
+      'PATCH',
+      `/api/admin/reactivation-requests/${reactivationRequestId}`,
+      { decision: 'denied', reviewNote: 'Please contact support with more details.' },
+      adminToken
+    );
+    assert(
+      deniedRequest.status === 200 && deniedRequest.body.request.status === 'denied',
+      'Administrator can deny a reactivation request'
+    );
+    const deniedTxn = await request(
+      'POST',
+      '/api/transactions',
+      { type: 'sale', amount: 200, description: 'Still suspended after denial' },
+      tokenB
+    );
+    assert(
+      deniedTxn.status === 403,
+      'Denied request leaves the account suspended'
+    );
+
+    const resubmittedRequest = await request(
+      'POST',
+      '/api/auth/reactivation-requests',
+      { reason: 'I have provided the requested details. Please review again.' },
+      tokenB
+    );
+    assert(
+      resubmittedRequest.status === 201,
+      'User can submit a new request after the previous one is denied'
+    );
+    const approvedRequest = await request(
+      'PATCH',
+      `/api/admin/reactivation-requests/${resubmittedRequest.body.request._id}`,
+      { decision: 'approved', reviewNote: 'Reviewed and approved.' },
+      adminToken
+    );
+    assert(
+      approvedRequest.status === 200 && approvedRequest.body.request.status === 'approved',
+      'Administrator can approve a reactivation request'
+    );
+    const reactivatedUserB = await User.findById(userB.id);
+    assert(
+      reactivatedUserB.accountStatus === 'active',
+      'Approving the request reactivates the account'
+    );
+
     // Admin reactivates User B
     const reactivateRes = await request(
       'PATCH',
@@ -513,6 +674,12 @@ const runTests = async () => {
       auditRes.status === 200 && auditRes.body.logs.some((l) => l.action === 'USER_SUSPENDED'),
       'Administrative suspension action is recorded in AuditLog'
     );
+    assert(
+      auditRes.body.logs.some((l) => l.action === 'REACTIVATION_REQUEST_SUBMITTED') &&
+        auditRes.body.logs.some((l) => l.action === 'REACTIVATION_REQUEST_APPROVED') &&
+        auditRes.body.logs.some((l) => l.action === 'REACTIVATION_REQUEST_DENIED'),
+      'Reactivation request submissions and decisions are recorded in AuditLog'
+    );
 
     // ---------------------------------------------------------
     // TEST 17: CSV Export Isolation
@@ -530,7 +697,9 @@ const runTests = async () => {
     console.log('========================================================\n');
 
     // Cleanup
-    await User.deleteMany({ email: { $in: ['test_user_a@test.com', 'test_user_b@test.com', 'admin_test@test.com'] } });
+    const completedTestUsers = await User.find({ email: { $in: testUserEmails } }).select('_id');
+    await ReactivationRequest.deleteMany({ user: { $in: completedTestUsers.map((user) => user._id) } });
+    await User.deleteMany({ email: { $in: testUserEmails } });
     await Transaction.deleteMany({ description: { $regex: /Alice|Bob/ } });
     await Customer.deleteMany({ name: { $regex: /Test Customer/ } });
 

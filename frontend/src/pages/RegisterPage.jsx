@@ -89,7 +89,10 @@ const RegisterPage = () => {
 
         {/* Sign Up with Google */}
         <div className="fn-google-section">
-          <GoogleSignInButton text="Sign Up with Google" />
+          <GoogleSignInButton
+            text="Sign Up with Google"
+            businessName={formData.businessName}
+          />
         </div>
 
         <div className="fn-auth-separator">

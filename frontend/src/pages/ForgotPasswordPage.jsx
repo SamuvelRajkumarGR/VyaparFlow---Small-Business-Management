@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, ArrowLeft, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mail, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const ForgotPasswordPage = () => {
   const { forgotPassword } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState({ type: '', message: '', resetToken: '' });
+  const [status, setStatus] = useState({ type: '', message: '' });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim()) return;
 
     setLoading(true);
-    setStatus({ type: '', message: '', resetToken: '' });
+    setStatus({ type: '', message: '' });
 
     const res = await forgotPassword(email.trim());
     setLoading(false);
@@ -22,8 +22,7 @@ const ForgotPasswordPage = () => {
     if (res.success) {
       setStatus({
         type: 'success',
-        message: res.message || 'Password reset instructions have been generated.',
-        resetToken: res.resetToken || '',
+        message: res.message || 'If an account exists with this email, password reset instructions will be sent.',
       });
     } else {
       setStatus({
@@ -54,17 +53,8 @@ const ForgotPasswordPage = () => {
         {status.type === 'success' ? (
           <div className="fn-reset-success-box">
             <CheckCircle size={36} className="fn-success-icon" />
-            <h3>Reset Request Sent</h3>
+            <h3>Check Your Email</h3>
             <p>{status.message}</p>
-            {status.resetToken && (
-              <div className="fn-token-display">
-                <span className="fn-token-lbl">Your Password Reset Token:</span>
-                <code className="fn-token-code">{status.resetToken}</code>
-                <Link to={`/reset-password?token=${status.resetToken}`} className="btn btn-sale fn-token-btn">
-                  Continue to Set New Password <ArrowRight size={14} />
-                </Link>
-              </div>
-            )}
             <Link to="/login" className="fn-auth-link" style={{ marginTop: '1rem', display: 'inline-block' }}>
               Back to Login
             </Link>

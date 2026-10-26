@@ -24,6 +24,9 @@ const auditLogSchema = new mongoose.Schema(
         'PASSWORD_RESET_REQUESTED',
         'PASSWORD_RESET_COMPLETED',
         'USER_PROFILE_UPDATED',
+        'REACTIVATION_REQUEST_SUBMITTED',
+        'REACTIVATION_REQUEST_APPROVED',
+        'REACTIVATION_REQUEST_DENIED',
       ],
     },
     targetUser: {

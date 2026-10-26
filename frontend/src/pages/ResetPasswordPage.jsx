@@ -79,19 +79,21 @@ const ResetPasswordPage = () => {
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="fn-auth-form">
-            <div className="form-group">
-              <label className="form-label" htmlFor="reset-tok">Reset Token</label>
-              <input
-                id="reset-tok"
-                type="text"
-                className="form-control"
-                placeholder="Paste your 64-character reset token"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-                autoComplete="one-time-code"
-                required
-              />
-            </div>
+            {!token && (
+              <div className="form-group">
+                <label className="form-label" htmlFor="reset-tok">Reset Token</label>
+                <input
+                  id="reset-tok"
+                  type="text"
+                  className="form-control"
+                  placeholder="Open the reset link from your email"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  autoComplete="one-time-code"
+                  required
+                />
+              </div>
+            )}
 
             <div className="form-group">
               <label className="form-label" htmlFor="reset-pwd">New Password</label>

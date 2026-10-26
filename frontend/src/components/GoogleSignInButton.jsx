@@ -1,231 +1,179 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-const GoogleSignInButton = ({ text = 'Continue with Google', onSuccess, onError }) => {
+const GoogleSignInButton = ({
+  text = 'Continue with Google',
+  businessName = '',
+  onSuccess,
+  onError,
+}) => {
   const { googleLogin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
-  const [showConfigModal, setShowConfigModal] = useState(false);
-  const [devEmail, setDevEmail] = useState('');
-  const [devName, setDevName] = useState('');
-  const [devBiz, setDevBiz] = useState('');
+  const [error, setError] = useState('');
+  const [buttonWidth, setButtonWidth] = useState(360);
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim();
+  const isConfigured = clientId && clientId !== 'your_google_client_id_here';
 
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+  useEffect(() => {
+    const updateButtonWidth = () => {
+      setButtonWidth(Math.max(200, Math.min(360, window.innerWidth - 64)));
+    };
 
-  const handleClick = async () => {
-    // If genuine Google Client ID is configured, trigger Google Identity popup
-    if (clientId && clientId !== 'your_google_client_id_here' && window.google?.accounts?.id) {
-      setLoading(true);
-      try {
-        window.google.accounts.id.prompt();
-      } catch (err) {
-        console.error('Google Prompt Error:', err);
-        setLoading(false);
+    updateButtonWidth();
+    window.addEventListener('resize', updateButtonWidth);
+    return () => window.removeEventListener('resize', updateButtonWidth);
+  }, []);
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    if (!credentialResponse.credential) {
+      const message = 'Google did not return an ID token. Please try again.';
+      setError(message);
+      onError?.(message);
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    const result = await googleLogin(credentialResponse.credential, businessName.trim());
+    setLoading(false);
+
+    if (result.success) {
+      if (onSuccess) {
+        onSuccess(result.user);
+      } else {
+        navigate(
+          result.user.role === 'admin'
+            ? '/admin'
+            : location.state?.from?.pathname || '/'
+        );
       }
       return;
     }
 
-    // If client ID is not configured yet, open helpful prompt / developer test dialog
-    setShowConfigModal(true);
-  };
-
-  const handleDevGoogleLogin = async (e) => {
-    e.preventDefault();
-    if (!devEmail) return;
-
-    setLoading(true);
-    setShowConfigModal(false);
-
-    // Build a mock JWT credential for dev testing
-    const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-    const payload = btoa(
-      JSON.stringify({
-        sub: `google_dev_${devEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
-        email: devEmail.toLowerCase().trim(),
-        name: devName.trim() || 'Google User',
-        picture: `https://api.dicebear.com/7.x/avataaars/svg?seed=${devEmail}`,
-        email_verified: true,
-      })
-    );
-    const mockToken = `${header}.${payload}.signature`;
-
-    const res = await googleLogin(mockToken, devBiz.trim());
-    setLoading(false);
-
-    if (res.success) {
-      if (onSuccess) onSuccess(res.user);
-      else navigate(res.user.role === 'admin' ? '/admin' : '/');
-    } else {
-      if (onError) onError(res.message);
+    if (result.accountStatus === 'suspended') {
+      navigate('/suspended');
+      return;
     }
+
+    const message = result.message || 'Google authentication failed. Please try again.';
+    setError(message);
+    onError?.(message);
   };
 
-  return (
-    <>
+  const googleButton = isConfigured ? (
+    <GoogleOAuthProvider clientId={clientId}>
+      <div className="google-login-button">
+        <GoogleLogin
+          onSuccess={handleGoogleSuccess}
+          onError={() => {
+            const message = 'Google sign-in could not be completed. Please try again.';
+            setError(message);
+            onError?.(message);
+          }}
+          text={text === 'Sign Up with Google' ? 'signup_with' : 'continue_with'}
+          theme="outline"
+          size="large"
+          shape="rectangular"
+          width={buttonWidth}
+        />
+        {loading && <span className="google-login-loading">Verifying with VyaparFlow...</span>}
+      </div>
+    </GoogleOAuthProvider>
+  ) : (
+    <div className="google-login-setup">
       <button
         type="button"
-        className="btn-google-auth"
-        onClick={handleClick}
-        disabled={loading}
+        className="google-login-placeholder"
+        disabled
+        aria-describedby="google-login-setup-message"
       >
-        <svg className="google-icon" viewBox="0 0 24 24" width="18" height="18">
-          <path
-            fill="#4285F4"
-            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-          />
-          <path
-            fill="#34A853"
-            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-          />
-          <path
-            fill="#FBBC05"
-            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-          />
-          <path
-            fill="#EA4335"
-            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-          />
+        <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" transform="translate(0 5)" />
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.91c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6C44.37 37.99 46.98 31.91 46.98 24.55z" />
+          <path fill="#34A853" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.27-3.13.76-4.59l-7.98-6.19A23.9 23.9 0 0 0 0 24c0 3.87.93 7.55 2.56 10.78l7.97-6.19z" transform="translate(0 0)" />
+          <path fill="#FBBC05" d="M24 48c6.48 0 11.93-2.13 15.9-5.8l-7.73-6c-2.14 1.43-4.89 2.28-8.17 2.28-6.26 0-11.57-4.22-13.47-9.91l-7.97 6.19C6.51 42.62 14.62 48 24 48z" />
         </svg>
-        <span>{loading ? 'Authenticating with Google...' : text}</span>
+        <span>{text}</span>
       </button>
+      <p className="google-login-unavailable" id="google-login-setup-message" role="status">
+        Add <code>VITE_GOOGLE_CLIENT_ID</code> to <code>frontend/.env</code> and restart the
+        frontend to enable Google account selection.{' '}
+        <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">
+          Create a Google OAuth Web Client ID
+        </a>.
+      </p>
+    </div>
+  );
 
-      {/* Google Configuration / Dev Simulation Modal */}
-      {showConfigModal && (
-        <div className="modal-backdrop">
-          <div className="modal-card fn-google-config-modal">
-            <div className="modal-header">
-              <h3 className="modal-title">Google OAuth 2.0 Authentication</h3>
-              <button className="btn-close" onClick={() => setShowConfigModal(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <p className="fn-g-info">
-                The Google OAuth backend integration using <code>google-auth-library</code> is fully active! To connect your official Google Cloud project:
-              </p>
-              <ol className="fn-g-steps">
-                <li>Create an OAuth 2.0 Client ID in <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer">Google Cloud Console</a>.</li>
-                <li>Add authorized JavaScript origin: <code>http://localhost:5173</code></li>
-                <li>Set <code>GOOGLE_CLIENT_ID</code> in <code>backend/.env</code> and <code>frontend/.env</code></li>
-              </ol>
-
-              <hr className="fn-divider" />
-              <p className="fn-g-sub">Or test the Google authentication flow immediately below:</p>
-
-              <form onSubmit={handleDevGoogleLogin} className="fn-g-dev-form">
-                <div className="form-group">
-                  <label className="form-label">Google Account Email</label>
-                  <input
-                    type="email"
-                    className="form-control"
-                    placeholder="e.g. priya.sharma@gmail.com"
-                    value={devEmail}
-                    onChange={(e) => setDevEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Full Name</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. Priya Sharma"
-                    value={devName}
-                    onChange={(e) => setDevName(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Business Name (Optional)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. Priya Silk & Sarees"
-                    value={devBiz}
-                    onChange={(e) => setDevBiz(e.target.value)}
-                  />
-                </div>
-
-                <div className="modal-footer" style={{ padding: 0, marginTop: '1rem' }}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowConfigModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={loading}>Continue as Google User</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
+  return (
+    <div className="fn-google-auth">
+      {googleButton}
+      {error && (
+        <p className="fn-google-auth-error" role="alert">
+          {error}
+        </p>
       )}
-
       <style>{`
-        .btn-google-auth {
+        .fn-google-auth {
+          width: 100%;
+        }
+        .google-login-button {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.5rem;
+          width: 100%;
+          min-height: 40px;
+        }
+        .google-login-loading {
+          color: var(--text-muted);
+          font-size: 0.8rem;
+        }
+        .google-login-placeholder {
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 0.75rem;
           width: 100%;
-          padding: 0.7rem 1.25rem;
-          background: var(--bg-surface);
-          border: 1.5px solid var(--border);
+          min-height: 44px;
+          padding: 0.65rem 1rem;
+          border: 1px solid var(--border);
           border-radius: var(--r-xl);
+          background: var(--bg-surface);
           color: var(--text-primary);
-          font-weight: 600;
+          font: inherit;
           font-size: 0.875rem;
-          cursor: pointer;
-          font-family: inherit;
-          transition: all var(--transition);
-          box-shadow: var(--shadow-xs);
-        }
-        .btn-google-auth:hover {
-          background: var(--bg-hover);
-          border-color: #4285F4;
-          box-shadow: 0 2px 8px rgba(66, 133, 244, 0.15);
-        }
-        .btn-google-auth:disabled {
-          opacity: 0.6;
+          font-weight: 600;
+          opacity: 0.7;
           cursor: not-allowed;
         }
-        .fn-google-config-modal {
-          max-width: 480px;
-        }
-        .fn-g-info {
-          font-size: 0.85rem;
+        .google-login-unavailable {
+          margin: 0.55rem 0 0;
           color: var(--text-secondary);
+          font-size: 0.78rem;
           line-height: 1.5;
-          margin-bottom: 0.75rem;
+          text-align: center;
         }
-        .fn-g-steps {
-          font-size: 0.8rem;
-          color: var(--text-muted);
-          padding-left: 1.25rem;
-          line-height: 1.6;
-          margin-bottom: 1rem;
-        }
-        .fn-g-steps code {
-          background: var(--bg-hover);
-          padding: 2px 6px;
-          border-radius: 4px;
-          color: var(--brand);
-        }
-        .fn-g-steps a {
+        .google-login-unavailable a {
           color: var(--brand);
           text-decoration: underline;
         }
-        .fn-divider {
-          border: none;
-          border-top: 1px solid var(--border);
-          margin: 1rem 0;
+        .google-login-unavailable code {
+          color: var(--brand);
+          overflow-wrap: anywhere;
         }
-        .fn-g-sub {
-          font-size: 0.825rem;
-          font-weight: 600;
-          color: var(--text-primary);
-          margin-bottom: 0.75rem;
-        }
-        .fn-g-dev-form {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
+        .fn-google-auth-error {
+          margin: 0.5rem 0 0;
+          color: var(--danger, #dc2626);
+          font-size: 0.8rem;
+          text-align: center;
         }
       `}</style>
-    </>
+    </div>
   );
 };
 

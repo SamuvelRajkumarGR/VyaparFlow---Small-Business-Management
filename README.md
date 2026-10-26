@@ -13,11 +13,11 @@ VyaparFlow is a production-grade, secure, multi-tenant small business management
 
 ### 2. Multi-Channel Authentication & Sessions
 - **Email & Password**: Registration and login with salted `bcryptjs` hashing.
-- **Genuine Google OAuth 2.0**: Integrated with `google-auth-library` and OpenID Connect. Token signature, audience, and expiry verified server-side.
+- **Genuine Google Sign-In**: Google Identity Services returns an OpenID Connect ID token; the backend verifies its signature, audience, and expiry and requires a verified email.
 - **Safe Account Linking**: Securely associates Google subject IDs to existing accounts without duplicate creation or takeover vulnerabilities.
 - **HttpOnly Cookies**: Session tokens stored in secure, HttpOnly, SameSite cookies to protect against XSS and token exfiltration.
 - **Rate Limiting**: Brute-force protection on authentication and password-reset endpoints.
-- **Password Reset**: Secure, expiring single-use reset tokens with audit logging.
+- **Password Reset**: Single-use, hashed, expiring reset tokens delivered through configurable SMTP email, with audit logging.
 
 ### 3. Business Financial Management
 - **Money In & Out**: Real-time sales and expense tracking across Cash, UPI (GPay, PhonePe, Paytm), and Card.
@@ -32,6 +32,7 @@ VyaparFlow is a production-grade, secure, multi-tenant small business management
 - **Platform Analytics**: Real aggregated counts (Total Users, Active vs Suspended, 7d/30d Growth, Platform Transactions).
 - **User Account Management**: Search, filter, and instantly suspend or reactivate business accounts with confirmation dialogs.
 - **Suspension Enforcement**: Suspended users are immediately blocked from all protected business operations.
+- **Reactivation Requests**: Suspended users can submit a review request; administrators can approve or deny it in the admin workspace, with decisions recorded in the audit trail.
 - **Privacy Boundary**: Super Admin dashboard does not expose ordinary merchants' private customer transactions.
 - **Immutable Audit Trail**: Administrative actions (provisioning, suspension, reactivation, migrations) are recorded in `AuditLog`.
 
@@ -57,7 +58,8 @@ Small Buisness Management/
 │   │   ├── User.js                  # User schema with roles & auth providers
 │   │   ├── Transaction.js           # Transaction schema with required owner reference
 │   │   ├── Customer.js              # Customer schema with owner & balance tracking
-│   │   └── AuditLog.js              # Administrative activity audit log
+│   │   ├── AuditLog.js              # Administrative activity audit log
+│   │   └── ReactivationRequest.js   # Suspended account review requests
 │   ├── routes/
 │   │   ├── authRoutes.js
 │   │   ├── transactionRoutes.js
@@ -124,10 +126,16 @@ MONGODB_URI=mongodb://127.0.0.1:27017/small_business_db
 JWT_SECRET=your_super_secret_jwt_key_here
 JWT_EXPIRE=7d
 
-# Google OAuth Credentials (Optional for local dev)
+# SMTP settings for password reset emails (example: Gmail App Password)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your_email@gmail.com
+SMTP_PASSWORD=your_email_app_password
+MAIL_FROM="VyaparFlow <your_email@gmail.com>"
+
+# Google Identity Services Web Client ID (required for Google sign-in)
 GOOGLE_CLIENT_ID=your_google_client_id_here
-GOOGLE_CLIENT_SECRET=your_google_client_secret_here
-GOOGLE_CALLBACK_URL=http://localhost:5001/api/auth/google/callback
 
 # Super Admin Provisioning Defaults
 ADMIN_EMAIL=admin@vyaparflow.com
@@ -194,24 +202,36 @@ npm run dev
 
 ---
 
-## 🔐 Google Cloud Console OAuth 2.0 Configuration
+## 🔐 Google Cloud Console Google Sign-In Configuration
 
-To configure genuine Google Sign-In with your own Google Cloud project:
+Google sign-in uses Google Identity Services and verifies the returned ID token on the backend:
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/).
 2. Create a new project or select an existing one.
 3. Under **APIs & Services > Credentials**, click **Create Credentials > OAuth client ID**.
 4. Application Type: **Web application**.
 5. Set Name: `VyaparFlow Web Client`.
-6. Add **Authorized JavaScript origins**:
+6. Add each environment's **Authorized JavaScript origins**:
    - `http://localhost:5173`
    - `http://127.0.0.1:5173`
-7. Add **Authorized redirect URIs**:
-   - `http://localhost:5001/api/auth/google/callback`
-8. Copy the generated **Client ID** and **Client Secret**.
-9. Paste into `backend/.env` (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) and `frontend/.env` (`VITE_GOOGLE_CLIENT_ID`).
+   - `https://vyaparflow-small-business-managemen.vercel.app`
+7. Copy the **Client ID**. No client secret or redirect URI is used by this ID-token flow.
+8. Set the same client ID in both the frontend (`VITE_GOOGLE_CLIENT_ID`) and backend (`GOOGLE_CLIENT_ID`).
+9. For local development, set `VITE_API_BASE_URL=http://localhost:5001/api` in `frontend/.env` and `CLIENT_URL=http://localhost:5173` in `backend/.env`.
+10. For deployment, set `VITE_GOOGLE_CLIENT_ID` and `VITE_API_BASE_URL` in the Vercel project's environment variables, then redeploy the frontend. Set `GOOGLE_CLIENT_ID` and `CLIENT_URL=https://vyaparflow-small-business-managemen.vercel.app` on the backend host. `VITE_API_BASE_URL` must point to the deployed backend's `/api` URL.
 
-*(Note: In local development before configuring Google Cloud credentials, the frontend includes a convenient developer simulation modal allowing immediate testing of Google sign-in workflows without blocking).*
+Google sign-in remains unavailable until these environment variables are configured. The backend rejects Google tokens unless their signature, audience, expiry, and verified email pass Google's verification.
+
+## ✉️ Password Reset Email Configuration
+
+Password reset links are sent through SMTP; the reset token is never included in the API response. Configure these variables on the backend:
+
+- `SMTP_HOST`, `SMTP_PORT`, and `SMTP_SECURE` for your email provider's SMTP server (`true` for implicit TLS, commonly port 465; `false` for STARTTLS, commonly port 587).
+- `SMTP_USER` and `SMTP_PASSWORD` with SMTP credentials. For Gmail, use an App Password with 2-Step Verification enabled rather than your normal account password.
+- `MAIL_FROM` with a sender address authorized by your provider.
+- `CLIENT_URL` with the frontend origin so reset links open the right app.
+
+Keep SMTP credentials only in backend environment variables (including the backend host); never put them in Vercel's `VITE_` variables or frontend files. Requests return a generic response to avoid disclosing whether an account exists. Reset links expire after 30 minutes and can be used once.
 
 ---
 
@@ -230,6 +250,7 @@ Run `npm test` inside `backend/` to execute the full suite:
 - [x] **Customer & Udhar Ledger Isolation**: Customer records and credit balances remain strictly private.
 - [x] **Super Admin RBAC**: Normal users receive 403 Forbidden when requesting admin endpoints.
 - [x] **Account Suspension Enforcement**: Suspended users are immediately denied access to business endpoints.
+- [x] **Reactivation Request Review**: Suspended users can submit a request, and administrators can review and resolve it.
 - [x] **Account Reactivation**: Restores normal business operations upon reactivation.
 - [x] **Audit Trail Verification**: Administrative operations logged in `AuditLog`.
 - [x] **Export Isolation**: CSV ledger exports strictly contain only the authenticated user's records.
