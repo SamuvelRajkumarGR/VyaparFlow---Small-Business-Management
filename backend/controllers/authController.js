@@ -114,12 +114,16 @@ const login = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid email or password' });
     }
 
-    // Check account status
+    // Suspended users receive a restricted session so they can request reactivation.
     if (user.accountStatus === 'suspended') {
+      const token = generateToken(user._id);
+      res.cookie('vyapar_token', token, getCookieOptions());
       return res.status(403).json({
         success: false,
         accountStatus: 'suspended',
         message: 'Your account has been suspended by the administrator. Please contact support.',
+        token,
+        user: sanitizeUser(user),
       });
     }
 

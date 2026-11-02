@@ -94,7 +94,8 @@ const AdminAuditLogsPage = () => {
               <tbody>
                 {logs.map((log) => {
                   const isSuspension = log.action.includes('SUSPEND');
-                  const isReactivation = log.action.includes('REACTIVATE');
+                  const isReactivation = log.action.includes('REACTIVATION') ||
+                    log.action.includes('REACTIVATED');
 
                   return (
                     <tr key={log._id} className="fn-tr">
@@ -106,8 +107,9 @@ const AdminAuditLogsPage = () => {
                           className={`fn-type-badge fn-audit-action ${
                             isSuspension ? 'fn-badge-expense' : isReactivation ? 'fn-badge-sale' : 'fn-audit-action-neutral'
                           }`}
+                          title={log.action}
                         >
-                          {log.action}
+                          {log.action.replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="fn-audit-email">{log.actorEmail}</td>
@@ -246,7 +248,7 @@ const AdminAuditLogsPage = () => {
         }
         .fn-admin-audit .fn-audit-table {
           width: 100%;
-          min-width: 1080px;
+          min-width: 1300px;
           border-collapse: collapse;
           table-layout: fixed;
           font-size: 0.82rem;
@@ -270,15 +272,15 @@ const AdminAuditLogsPage = () => {
           vertical-align: top;
         }
         .fn-admin-audit .fn-audit-table th:nth-child(1),
-        .fn-admin-audit .fn-audit-table td:nth-child(1) { width: 170px; }
+        .fn-admin-audit .fn-audit-table td:nth-child(1) { width: 185px; }
         .fn-admin-audit .fn-audit-table th:nth-child(2),
-        .fn-admin-audit .fn-audit-table td:nth-child(2) { width: 190px; }
+        .fn-admin-audit .fn-audit-table td:nth-child(2) { width: 240px; }
         .fn-admin-audit .fn-audit-table th:nth-child(3),
-        .fn-admin-audit .fn-audit-table td:nth-child(3) { width: 190px; }
+        .fn-admin-audit .fn-audit-table td:nth-child(3) { width: 210px; }
         .fn-admin-audit .fn-audit-table th:nth-child(4),
-        .fn-admin-audit .fn-audit-table td:nth-child(4) { width: 190px; }
+        .fn-admin-audit .fn-audit-table td:nth-child(4) { width: 210px; }
         .fn-admin-audit .fn-audit-table th:nth-child(6),
-        .fn-admin-audit .fn-audit-table td:nth-child(6) { width: 140px; }
+        .fn-admin-audit .fn-audit-table td:nth-child(6) { width: 155px; }
         .fn-admin-audit .fn-audit-table tr:last-child td {
           border-bottom: 0;
         }
@@ -300,8 +302,12 @@ const AdminAuditLogsPage = () => {
           overflow-wrap: anywhere;
         }
         .fn-admin-audit .fn-audit-action {
+          display: inline-flex;
+          max-width: 100%;
+          white-space: normal;
+          line-height: 1.35;
           font-size: 0.68rem;
-          white-space: nowrap;
+          overflow-wrap: anywhere;
         }
         .fn-admin-audit .fn-audit-action-neutral {
           background: var(--bg-hover);
@@ -362,7 +368,7 @@ const AdminAuditLogsPage = () => {
             align-self: flex-start;
           }
           .fn-admin-audit .fn-audit-table {
-            min-width: 1080px;
+            min-width: 1300px;
           }
         }
         @media (max-width: 480px) {

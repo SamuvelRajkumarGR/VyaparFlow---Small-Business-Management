@@ -75,6 +75,17 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
       setAuthError(msg);
+      if (err.response?.data?.accountStatus === 'suspended' && err.response?.data?.user) {
+        const { user: suspendedUser, token } = err.response.data;
+        if (token) localStorage.setItem('vyapar_jwt', token);
+        setUser(suspendedUser);
+        if (suspendedUser.businessName) {
+          localStorage.setItem('bizpulse_bname', suspendedUser.businessName);
+        }
+        if (suspendedUser.currency) {
+          localStorage.setItem('bizpulse_currency', suspendedUser.currency);
+        }
+      }
       return {
         success: false,
         message: msg,

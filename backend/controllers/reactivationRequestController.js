@@ -2,6 +2,15 @@ const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 const ReactivationRequest = require('../models/ReactivationRequest');
 
+const REQUEST_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+const requestLimitResponse = (res, request, nextRequestAt) => res.status(429).json({
+  success: false,
+  message: `You can submit one reactivation request every 24 hours. Try again after ${nextRequestAt.toISOString()}.`,
+  request,
+  nextRequestAt,
+});
+
 const createRequest = async (req, res, next) => {
   try {
     const reason = typeof req.body.reason === 'string' ? req.body.reason.trim() : '';
@@ -19,6 +28,8 @@ const createRequest = async (req, res, next) => {
       });
     }
 
+    const now = new Date();
+    const cooldownStartedAt = new Date(now.getTime() - REQUEST_COOLDOWN_MS);
     const existingRequest = await ReactivationRequest.findOne({
       user: req.user._id,
       status: 'pending',
@@ -29,6 +40,43 @@ const createRequest = async (req, res, next) => {
         message: 'You already have a pending reactivation request.',
         request: existingRequest,
       });
+    }
+
+    const latestRequest = await ReactivationRequest.findOne({
+      user: req.user._id,
+      createdAt: { $gte: cooldownStartedAt },
+    }).sort({ createdAt: -1 });
+    if (latestRequest) {
+      return requestLimitResponse(
+        res,
+        latestRequest,
+        new Date(latestRequest.createdAt.getTime() + REQUEST_COOLDOWN_MS)
+      );
+    }
+
+    const requestSlot = await User.findOneAndUpdate(
+      {
+        _id: req.user._id,
+        accountStatus: 'suspended',
+        $or: [
+          { lastReactivationRequestAt: { $exists: false } },
+          { lastReactivationRequestAt: { $lte: cooldownStartedAt } },
+        ],
+      },
+      { $set: { lastReactivationRequestAt: now } },
+      { new: true }
+    ).select('lastReactivationRequestAt');
+
+    if (!requestSlot) {
+      const recentRequest = await ReactivationRequest.findOne({
+        user: req.user._id,
+        createdAt: { $gte: cooldownStartedAt },
+      }).sort({ createdAt: -1 });
+      const user = await User.findById(req.user._id).select('lastReactivationRequestAt');
+      const nextRequestAt = new Date(
+        (user?.lastReactivationRequestAt || now).getTime() + REQUEST_COOLDOWN_MS
+      );
+      return requestLimitResponse(res, recentRequest, nextRequestAt);
     }
 
     const request = await ReactivationRequest.create({
@@ -51,6 +99,7 @@ const createRequest = async (req, res, next) => {
       success: true,
       message: 'Your reactivation request has been sent to the administrator.',
       request,
+      nextRequestAt: new Date(request.createdAt.getTime() + REQUEST_COOLDOWN_MS),
     });
   } catch (error) {
     if (error.code === 11000) {
@@ -67,7 +116,16 @@ const getMyRequest = async (req, res, next) => {
   try {
     const request = await ReactivationRequest.findOne({ user: req.user._id })
       .sort({ createdAt: -1 });
-    res.status(200).json({ success: true, request });
+    const latestRequestAt = [
+      req.user.lastReactivationRequestAt,
+      request?.createdAt,
+    ].filter(Boolean).reduce((latest, candidate) => (
+      !latest || candidate > latest ? candidate : latest
+    ), null);
+    const nextRequestAt = latestRequestAt
+      ? new Date(latestRequestAt.getTime() + REQUEST_COOLDOWN_MS)
+      : null;
+    res.status(200).json({ success: true, request, nextRequestAt });
   } catch (error) {
     next(error);
   }

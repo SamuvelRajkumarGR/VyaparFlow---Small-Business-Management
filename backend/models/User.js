@@ -76,6 +76,9 @@ const userSchema = new mongoose.Schema(
     lastLoginAt: {
       type: Date,
     },
+    lastReactivationRequestAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,

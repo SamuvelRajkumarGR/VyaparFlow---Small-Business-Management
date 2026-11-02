@@ -523,6 +523,28 @@ const runTests = async () => {
       'Suspended user is blocked from business operations (403 Forbidden)'
     );
 
+    const suspendedLogin = await request('POST', '/api/auth/login', {
+      email: 'test_user_b@test.com',
+      password: 'BobPassword123!',
+    });
+    const suspendedToken = suspendedLogin.body.token;
+    assert(
+      suspendedLogin.status === 403 &&
+        suspendedLogin.body.accountStatus === 'suspended' &&
+        suspendedToken,
+      'Suspended user can obtain a restricted session after verifying credentials'
+    );
+    const blockedWithSuspendedToken = await request(
+      'POST',
+      '/api/transactions',
+      { type: 'sale', amount: 200, description: 'Blocked with restricted session' },
+      suspendedToken
+    );
+    assert(
+      blockedWithSuspendedToken.status === 403,
+      'Restricted suspended-user session cannot access business operations'
+    );
+
     // Suspended users can request review, but not access admin request data.
     const requestByActiveUser = await request(
       'POST',
@@ -547,7 +569,7 @@ const runTests = async () => {
       'POST',
       '/api/auth/reactivation-requests',
       { reason: 'I believe my account was suspended in error. Please review it.' },
-      tokenB
+      suspendedToken
     );
     assert(
       submittedRequest.status === 201 && submittedRequest.body.request.status === 'pending',
@@ -625,12 +647,34 @@ const runTests = async () => {
       tokenB
     );
     assert(
-      resubmittedRequest.status === 201,
-      'User can submit a new request after the previous one is denied'
+      resubmittedRequest.status === 429 &&
+        resubmittedRequest.body.nextRequestAt &&
+        resubmittedRequest.body.request.status === 'denied',
+      'User cannot submit another request within 24 hours of a denied request'
+    );
+
+    const cooldownExpiredAt = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    await User.updateOne(
+      { _id: userB.id },
+      { $set: { lastReactivationRequestAt: cooldownExpiredAt } }
+    );
+    await ReactivationRequest.collection.updateOne(
+      { _id: new mongoose.Types.ObjectId(reactivationRequestId) },
+      { $set: { createdAt: cooldownExpiredAt } }
+    );
+    const resubmittedRequestAfterCooldown = await request(
+      'POST',
+      '/api/auth/reactivation-requests',
+      { reason: 'I have provided the requested details. Please review again.' },
+      tokenB
+    );
+    assert(
+      resubmittedRequestAfterCooldown.status === 201,
+      'User can submit a new request after the 24-hour cooldown expires'
     );
     const approvedRequest = await request(
       'PATCH',
-      `/api/admin/reactivation-requests/${resubmittedRequest.body.request._id}`,
+      `/api/admin/reactivation-requests/${resubmittedRequestAfterCooldown.body.request._id}`,
       { decision: 'approved', reviewNote: 'Reviewed and approved.' },
       adminToken
     );

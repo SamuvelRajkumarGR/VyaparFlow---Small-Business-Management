@@ -15,6 +15,8 @@ const SuspendedAccountPage = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [nextRequestAt, setNextRequestAt] = useState(null);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
   const loadRequest = useCallback(async () => {
     setLoading(true);
@@ -22,6 +24,7 @@ const SuspendedAccountPage = () => {
     try {
       const result = await getMyReactivationRequestAPI();
       setRequest(result.request);
+      setNextRequestAt(result.nextRequestAt ? new Date(result.nextRequestAt) : null);
     } catch (err) {
       setError(err.response?.data?.message || 'Could not load your reactivation request.');
     } finally {
@@ -40,10 +43,14 @@ const SuspendedAccountPage = () => {
     try {
       const result = await createReactivationRequestAPI(reason);
       setRequest(result.request);
+      setNextRequestAt(result.nextRequestAt ? new Date(result.nextRequestAt) : null);
       setReason('');
     } catch (err) {
       if (err.response?.data?.request) {
         setRequest(err.response.data.request);
+      }
+      if (err.response?.data?.nextRequestAt) {
+        setNextRequestAt(new Date(err.response.data.nextRequestAt));
       }
       setError(err.response?.data?.message || 'Could not submit your request.');
     } finally {
@@ -57,6 +64,16 @@ const SuspendedAccountPage = () => {
   };
 
   const isPending = request?.status === 'pending';
+  const isInCooldown = nextRequestAt && nextRequestAt.getTime() > currentTime;
+
+  useEffect(() => {
+    if (!isInCooldown) return undefined;
+    const timer = window.setTimeout(
+      () => setCurrentTime(Date.now()),
+      nextRequestAt.getTime() - currentTime
+    );
+    return () => window.clearTimeout(timer);
+  }, [currentTime, isInCooldown, nextRequestAt]);
 
   return (
     <div className="fn-auth-wrapper fn-suspend-wrapper">
@@ -107,15 +124,17 @@ const SuspendedAccountPage = () => {
             <div>
               <strong>Request sent for review</strong>
               <p>An administrator will review your request. You can sign out and check back later.</p>
-              <small>Submitted {new Date(request.createdAt).toLocaleString()}</small>
-              <button
-                type="button"
-                className="fn-suspend-check-status"
-                onClick={loadRequest}
-                disabled={loading}
-              >
-                Check request status
-              </button>
+              <div className="fn-suspend-request-meta">
+                <small>Submitted {new Date(request.createdAt).toLocaleString()}</small>
+                <button
+                  type="button"
+                  className="fn-suspend-check-status"
+                  onClick={loadRequest}
+                  disabled={loading}
+                >
+                  Check request status
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -125,6 +144,12 @@ const SuspendedAccountPage = () => {
                 <strong>Your previous request was not approved.</strong>
                 {request.reviewNote && <p>Administrator note: {request.reviewNote}</p>}
                 <small>Reviewed {request.reviewedAt ? new Date(request.reviewedAt).toLocaleString() : ''}</small>
+                {isInCooldown && (
+                  <p>
+                    You can submit another request after {nextRequestAt.toLocaleString()}.
+                    Only one request is allowed every 24 hours.
+                  </p>
+                )}
               </div>
             )}
             <form onSubmit={handleSubmit} className="fn-suspend-request-form">
@@ -143,7 +168,7 @@ const SuspendedAccountPage = () => {
               <button
                 type="submit"
                 className="btn btn-primary fn-suspend-submit"
-                disabled={submitting || reason.trim().length < 10}
+                disabled={submitting || reason.trim().length < 10 || isInCooldown}
               >
                 {request?.status === 'denied' ? <RotateCcw size={16} /> : <Send size={16} />}
                 <span>
@@ -271,9 +296,15 @@ const SuspendedAccountPage = () => {
         }
         .fn-suspend-request-state svg { color: var(--green); flex-shrink: 0; }
         .fn-suspend-request-state p, .fn-suspend-review p { margin: 0.35rem 0; color: var(--text-secondary); }
+        .fn-suspend-request-meta {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 0.25rem 0.85rem;
+          margin-top: 0.6rem;
+        }
         .fn-suspend-check-status {
-          margin-top: 0.5rem;
-          padding: 0;
+          padding: 0.2rem 0;
           border: 0;
           background: transparent;
           color: var(--brand);
