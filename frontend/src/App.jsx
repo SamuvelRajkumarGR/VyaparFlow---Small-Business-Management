@@ -9,6 +9,7 @@ import Navbar from './components/Navbar';
 import TransactionModal from './components/TransactionModal';
 import ConfirmModal from './components/ConfirmModal';
 import ToastContainer from './components/ToastContainer';
+import LogoIntro from './components/LogoIntro';
 
 // Business Pages
 import Dashboard from './pages/Dashboard';
@@ -238,6 +239,7 @@ const App = () => (
           </Routes>
         </Router>
       </TransactionProvider>
+      <LogoIntro />
     </AuthProvider>
 
     <style>{`
