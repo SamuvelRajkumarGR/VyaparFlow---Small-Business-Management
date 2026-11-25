@@ -58,6 +58,7 @@ app.get('/api/health', (req, res) => {
 
 // Import Routes
 const authRoutes = require('./routes/authRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const customerRoutes = require('./routes/customerRoutes');
 const reportRoutes = require('./routes/reportRoutes');
@@ -66,6 +67,7 @@ const errorHandler = require('./middleware/errorHandler');
 
 // Mount Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/reports', reportRoutes);

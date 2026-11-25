@@ -9,6 +9,7 @@
     "seed": "node seed/seedData.js",
     "provision-admin": "node scripts/provisionAdmin.js",
     "migrate-legacy": "node scripts/migrateLegacyData.js",
+    "test:chat": "node tests/chatController.test.js",
     "test": "node tests/securityAndIsolation.test.js"
   },
   "dependencies": {

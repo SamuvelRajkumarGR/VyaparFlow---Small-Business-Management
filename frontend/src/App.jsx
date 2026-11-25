@@ -9,6 +9,7 @@ import Navbar from './components/Navbar';
 import TransactionModal from './components/TransactionModal';
 import ConfirmModal from './components/ConfirmModal';
 import ToastContainer from './components/ToastContainer';
+import ChatAssistant from './components/ChatAssistant';
 import LogoIntro from './components/LogoIntro';
 
 // Business Pages
@@ -103,6 +104,7 @@ const AppLayout = ({ children }) => (
     <TransactionModal />
     <ConfirmModal />
     <ToastContainer />
+    <ChatAssistant />
   </div>
 );
 

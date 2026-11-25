@@ -25,6 +25,7 @@ VyaparFlow is a production-grade, secure, multi-tenant small business management
 - **Customer & Udhar Ledger**: Track customer credit (Udhar) and advance balances with 1-click credit recording and settlement.
 - **Financial Analytics**: Recharts trend lines, payment mode distribution, and spending donuts.
 - **CSV Ledger Export**: Generates downloadable spreadsheets containing strictly authorized records.
+- **Business Chat Assistant**: Authenticated, rate-limited read-only summaries of each user's sales, expenses, profit, and expense categories, plus Gemini for general business questions.
 
 ### 4. Super Admin Provisioning & Governance
 - **Zero Public Admin Registration**: Admin role can never be self-assigned during registration or Google sign-in.
@@ -47,6 +48,7 @@ Small Buisness Management/
 │   │   └── db.js                    # MongoDB Mongoose connection
 │   ├── controllers/
 │   │   ├── authController.js        # Register, Login, Google OAuth, Profile, Password Reset
+│   │   ├── chatController.js        # Locally routes business-data questions and handles general Gemini chat
 │   │   ├── transactionController.js # Isolated Transaction CRUD & Financial Aggregates
 │   │   ├── customerController.js    # Customer & Udhar (Credit) Ledger
 │   │   ├── reportController.js      # Isolated CSV & Statement Exports
@@ -62,10 +64,13 @@ Small Buisness Management/
 │   │   └── ReactivationRequest.js   # Suspended account review requests
 │   ├── routes/
 │   │   ├── authRoutes.js
+│   │   ├── chatRoutes.js
 │   │   ├── transactionRoutes.js
 │   │   ├── customerRoutes.js
 │   │   ├── reportRoutes.js
 │   │   └── adminRoutes.js
+│   ├── services/
+│   │   └── chatDataAssistant.js     # Owner-scoped local financial summaries for chat
 │   ├── scripts/
 │   │   ├── provisionAdmin.js        # Super Admin provisioning CLI script
 │   │   └── migrateLegacyData.js     # Safe unowned transaction migration utility
@@ -77,7 +82,7 @@ Small Buisness Management/
 │   └── package.json
 └── frontend/
     ├── src/
-    │   ├── components/              # Sidebar, Navbar, GoogleSignInButton, Modals, Cards
+    │   ├── components/              # Sidebar, Navbar, ChatAssistant, Modals, Cards
     │   ├── context/
     │   │   ├── AuthContext.jsx      # Session management & user profile state
     │   │   ├── TransactionContext.jsx # Private business ledger state
@@ -137,6 +142,9 @@ MAIL_FROM="VyaparFlow <your_email@gmail.com>"
 # Google Identity Services Web Client ID (required for Google sign-in)
 GOOGLE_CLIENT_ID=your_google_client_id_here
 
+# Gemini API key (backend only; never use a VITE_ prefix)
+GEMINI_API_KEY=your_gemini_api_key_here
+
 # Super Admin Provisioning Defaults
 ADMIN_EMAIL=admin@vyaparflow.com
 ADMIN_PASSWORD=VyaparAdmin#2026!
@@ -184,6 +192,14 @@ Verify that all 34 security, cross-user data isolation, and admin boundaries pas
 cd backend
 npm test
 ```
+
+Run the isolated chat assistant tests without making external API calls:
+```powershell
+cd backend
+npm run test:chat
+```
+
+Supported sales, expense, profit, month-comparison, and expense-category questions are calculated locally from the authenticated user's transactions. The query is scoped to that user, and transaction records are not sent to Google. Questions without a specified period default to all recorded transactions; today, yesterday, month, year, and named English month periods are supported. General business questions are sent to Gemini with fictional sample figures only; free-tier prompts may be used to improve Google products. Do not include real business or personal information in general questions. The chat widget presents a concise privacy notice with expandable details and requires acknowledgement before use. Goal tracking, customer details, and individual transaction lookup are not available in chat yet.
 
 ### 8. Start Backend and Frontend
 In Terminal 1 (Backend):

@@ -121,6 +121,11 @@ export const seedDemoDataAPI = async () => {
   return response.data;
 };
 
+export const sendChatMessageAPI = async (message) => {
+  const response = await api.post('/chat', { message });
+  return response.data;
+};
+
 // ==========================================
 // Customer & Udhar APIs
 // ==========================================
