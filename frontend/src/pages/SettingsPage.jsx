@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { User, Palette, Database, CheckCircle, Lock } from 'lucide-react';
+import { User, Palette, CheckCircle, Lock } from 'lucide-react';
 import { useTransaction } from '../context/TransactionContext';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 
 const SettingsPage = () => {
-  const { businessName, currency, updateSettings, handleSeedData } = useTransaction();
+  const { businessName, currency, updateSettings } = useTransaction();
   const { theme, setTheme } = useTheme();
   const { user, changePassword } = useAuth();
   const isAdmin = user?.role === 'admin';
@@ -258,35 +258,6 @@ const SettingsPage = () => {
           </div>
         </div>
 
-        {!isAdmin && (
-          <>
-            {/* Demo Data Management */}
-            <div className="card fn-settings-card">
-              <div className="fn-card-hdr">
-                <div className="fn-hdr-icon-wrap fn-icon-amber">
-                  <Database size={18} />
-                </div>
-                <div>
-                  <h3 className="fn-card-title">Personal Demo Data</h3>
-                  <p className="fn-card-subtitle">Populate your workspace with sample records</p>
-                </div>
-              </div>
-
-              <div className="fn-demo-body">
-                <p className="fn-demo-text">
-                  Seed your private workspace with 30 days of realistic sales, stock purchases, rent, staff salaries, and utility bills.
-                </p>
-                <div className="fn-demo-notice">
-                  <span>⚠️ Notice: This only affects YOUR business data. Other users' workspaces remain isolated and untouched.</span>
-                </div>
-                <button className="btn btn-secondary fn-demo-btn" onClick={handleSeedData}>
-                  <Database size={15} />
-                  <span>Load 30-Day Demo Data</span>
-                </button>
-              </div>
-            </div>
-          </>
-        )}
       </div>
 
       <style>{`
@@ -401,29 +372,6 @@ const SettingsPage = () => {
         }
         .fn-theme-check {
           color: var(--brand);
-        }
-        .fn-demo-body {
-          padding: 1.4rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.85rem;
-        }
-        .fn-demo-text {
-          font-size: 0.85rem;
-          color: var(--text-secondary);
-          line-height: 1.55;
-        }
-        .fn-demo-notice {
-          background: var(--amber-light);
-          padding: 0.65rem 0.85rem;
-          border-radius: var(--r-lg);
-          font-size: 0.775rem;
-          font-weight: 600;
-          color: var(--amber);
-        }
-        .fn-demo-btn {
-          align-self: flex-start;
-          margin-top: 0.4rem;
         }
       `}</style>
     </div>

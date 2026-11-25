@@ -5,7 +5,6 @@ import {
   createTransactionAPI,
   updateTransactionAPI,
   deleteTransactionAPI,
-  seedDemoDataAPI,
 } from '../services/api';
 import { useAuth } from './AuthContext';
 
@@ -166,21 +165,6 @@ export const TransactionProvider = ({ children }) => {
     }
   };
 
-  // Seed sample data for current user
-  const handleSeedData = async () => {
-    try {
-      setLoading(true);
-      const res = await seedDemoDataAPI();
-      if (res.success) {
-        addToast(res.message || 'Sample demo data seeded successfully!', 'success');
-        fetchData();
-      }
-    } catch (err) {
-      addToast(err.response?.data?.message || 'Failed to seed demo data', 'error');
-      setLoading(false);
-    }
-  };
-
   // Update Settings via Profile
   const updateSettings = async (name, curr) => {
     const res = await updateProfile({ businessName: name, currency: curr });
@@ -220,7 +204,6 @@ export const TransactionProvider = ({ children }) => {
         setIsDeleteModalOpen,
         confirmDelete,
         handleDeleteTransaction,
-        handleSeedData,
         updateSettings,
         toasts,
         addToast,

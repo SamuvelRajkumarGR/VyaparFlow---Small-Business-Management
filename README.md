@@ -75,7 +75,7 @@ Small Buisness Management/
 │   │   ├── provisionAdmin.js        # Super Admin provisioning CLI script
 │   │   └── migrateLegacyData.js     # Safe unowned transaction migration utility
 │   ├── seed/
-│   │   └── seedData.js              # User-isolated demo dataset
+│   │   └── seedData.js              # Local demo-account seed utility
 │   ├── tests/
 │   │   └── securityAndIsolation.test.js # Automated 34-point security test suite
 │   ├── server.js                    # Express app with Helmet, CORS, CookieParser

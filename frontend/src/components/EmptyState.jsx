@@ -3,7 +3,7 @@ import { PlusCircle, MinusCircle, Sparkles } from 'lucide-react';
 import { useTransaction } from '../context/TransactionContext';
 
 const EmptyState = () => {
-  const { openAddSaleModal, openAddExpenseModal, handleSeedData } = useTransaction();
+  const { openAddSaleModal, openAddExpenseModal } = useTransaction();
 
   return (
     <div className="glass-card empty-state-container">
@@ -20,9 +20,6 @@ const EmptyState = () => {
         </button>
         <button className="btn btn-expense" onClick={openAddExpenseModal}>
           <MinusCircle size={18} /> Record First Expense
-        </button>
-        <button className="btn btn-secondary" onClick={handleSeedData}>
-          ✨ Load Sample Data
         </button>
       </div>
 
