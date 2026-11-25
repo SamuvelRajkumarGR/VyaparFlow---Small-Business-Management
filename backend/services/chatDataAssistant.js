@@ -4,7 +4,7 @@ const { isCreditGivenTransaction } = require('../utils/transactionClassification
 const SALES_TERMS = /\b(?:sales?|revenue|turnover)\b|விற்பனை|வருவாய்/iu;
 const EXPENSE_TERMS = /\b(?:expenses?|spend|spending|costs?)\b|செலவு|செலவுகள்|செலவினம்/iu;
 const PROFIT_TERMS = /\b(?:profit|profits|earnings|margin|income)\b|லாபம்|இலாபம்/iu;
-const DATA_TERMS = /\b(?:sales?|revenue|turnover|expenses?|spend|spending|costs?|profit|profits|earnings|margin|income|transaction|transactions|invoice|invoices|customer|customers|inventory|stock|payment|payments|supplier|suppliers|budget|goal|goals|performance|summary|overview|insights?)\b|விற்பனை|வருவாய்|செலவு|செலவுகள்|செலவினம்|லாபம்|இலாபம்|பரிவர்த்தனை|விலைப்பட்டியல்|வாடிக்கையாளர்|சரக்கு|கட்டணம்|பட்ஜெட்|இலக்கு|சுருக்கம்|நிலைமை/iu;
+const DATA_TERMS = /\b(?:sales?|revenue|turnover|expenses?|spend|spending|costs?|profit|profits|earnings|margin|income|transaction|transactions|invoice|invoices|customer|customers|inventory|stock|payment|payments|supplier|suppliers|budget|goal|goals|performance|stats?|summary|overview|insights?)\b|விற்பனை|வருவாய்|செலவு|செலவுகள்|செலவினம்|லாபம்|இலாபம்|பரிவர்த்தனை|விலைப்பட்டியல்|வாடிக்கையாளர்|சரக்கு|கட்டணம்|பட்ஜெட்|இலக்கு|சுருக்கம்|நிலைமை/iu;
 const SAMPLE_TERMS = /\b(?:sample|fictional|demo)\b/i;
 const GENERAL_ADVICE_TERMS = /\b(?:how can|how do i|how to|ways?\s+(?:to|a|an|for)|tips?|ideas?|strateg(?:y|ies)|recommendations?|what should i do)\b/i;
 const PERSONAL_DATA_TERMS = /\b(?:my|our|account|records?|data|transactions?)\b|என்|எனது|எங்கள்|நமது|எனது தரவு|என் பதிவுகள்/iu;
@@ -207,7 +207,7 @@ const buildLocalAnswer = async ({ message, ownerId, currency = '₹', now = new 
   const isTamil = /[\u0B80-\u0BFF]/.test(message);
   const isComparison = COMPARISON_TERMS.test(message);
   const asksBreakdown = BREAKDOWN_TERMS.test(message) && EXPENSE_TERMS.test(message);
-  const asksSummary = /\b(?:summary|overview|performance|insight|insights)\b|சுருக்கம்|நிலைமை|வணிக நிலை/iu.test(message);
+  const asksSummary = /\b(?:stats?|summary|overview|performance|insight|insights)\b|சுருக்கம்|நிலைமை|வணிக நிலை/iu.test(message);
   const asksSales = SALES_TERMS.test(message);
   const asksExpenses = EXPENSE_TERMS.test(message);
   const asksProfit = PROFIT_TERMS.test(message);

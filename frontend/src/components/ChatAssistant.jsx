@@ -3,10 +3,15 @@ import { MessageCircle, Send, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { sendChatMessageAPI } from '../services/api';
 
-const SUGGESTED_QUESTIONS = [
+const LOCAL_SUGGESTED_QUESTIONS = [
   'What are my total sales?',
   'What is my net profit?',
   'What was my biggest expense?',
+];
+const GENERAL_SUGGESTED_QUESTIONS = [
+  'What are simple ways to reduce operating costs?',
+  'How can a small shop attract more customers?',
+  'How can a business encourage repeat purchases?',
 ];
 
 const renderInlineMarkdown = (text) => text
@@ -184,16 +189,32 @@ const ChatAssistant = () => {
 
             {messages.length === 1 && (
               <div className="vfc-suggestions">
-                {SUGGESTED_QUESTIONS.map((question) => (
-                  <button
-                    type="button"
-                    key={question}
-                    disabled={!acknowledged || isSending}
-                    onClick={() => askQuestion(question)}
-                  >
-                    {question}
-                  </button>
-                ))}
+                <div className="vfc-suggestion-group">
+                  <strong>Ask about your VyaparFlow data</strong>
+                  {LOCAL_SUGGESTED_QUESTIONS.map((question) => (
+                    <button
+                      type="button"
+                      key={question}
+                      disabled={!acknowledged || isSending}
+                      onClick={() => askQuestion(question)}
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
+                <div className="vfc-suggestion-group">
+                  <strong>General business questions (processed outside VyaparFlow)</strong>
+                  {GENERAL_SUGGESTED_QUESTIONS.map((question) => (
+                    <button
+                      type="button"
+                      key={question}
+                      disabled={!acknowledged || isSending}
+                      onClick={() => askQuestion(question)}
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -335,8 +356,16 @@ const ChatAssistant = () => {
             }
             .vfc-suggestions {
               display: grid;
-              gap: 0.45rem;
+              gap: 0.8rem;
               width: 100%;
+            }
+            .vfc-suggestion-group {
+              display: grid;
+              gap: 0.45rem;
+            }
+            .vfc-suggestion-group strong {
+              color: var(--text-muted);
+              font-size: 0.7rem;
             }
             .vfc-suggestions button {
               padding: 0.55rem 0.7rem;

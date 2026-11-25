@@ -69,6 +69,13 @@ const runTests = async () => {
     assert.deepStrictEqual(capturedQuery, { owner: 'owner-test' });
     assert.strictEqual(selectedFields, 'type amount category isCreditGiven description');
 
+    const localStats = await invokeChat({ message: 'whats my stats' });
+    assert.strictEqual(localStats.statusCode, 200);
+    assert.match(localStats.payload.answer, /Your all-time business summary/);
+    assert.match(localStats.payload.answer, /Sales: ₹500/);
+    assert.match(localStats.payload.answer, /Expenses: ₹150/);
+    assert.match(localStats.payload.answer, /Net profit: ₹350/);
+
     const localBreakdown = await invokeChat({ message: 'What was my biggest expense?' });
     assert.strictEqual(localBreakdown.statusCode, 200);
     assert.match(localBreakdown.payload.answer, /Rent: ₹100[\s\S]*Stock: ₹50/);
